@@ -1,0 +1,134 @@
+#ifndef GLOBALS_H_
+#define GLOBALS_H_
+
+//======================================================================
+const int  MAX_URI = 2048;
+const int  ERR_TRY_AGAIN = -1000;
+
+enum
+{
+    RS101 = 101,
+    RS200 = 200, RS204 = 204, RS206 = 206,
+    RS301 = 301, RS302,
+    RS400 = 400, RS401, RS402, RS403, RS404, RS405, RS406, RS407,
+    RS408, RS411 = 411, RS413 = 413, RS414, RS415, RS416, RS417, RS418, RS429 = 429, RS431 = 431,
+    RS500 = 500, RS501, RS502, RS503, RS504, RS505
+};
+
+enum PROTOCOL { P_HTTP1, P_HTTP2};
+
+enum HTTP_METHOD
+{
+    M_NULL, M_GET, M_HEAD, M_POST, M_OPTIONS, M_PUT,
+    M_PATCH, M_DELETE, M_TRACE, M_CONNECT
+};
+
+enum HTTP1_STATUS
+{
+    REDIRECT,
+    READ_REQUEST,
+    READ_POSTDATA,
+    SEND_RESP_HEADERS,
+    SEND_ENTITY,
+    HTTP1_SHUTDOWN,
+};
+
+enum HTTP2_STATUS
+{
+    PREFACE_MESSAGE,
+    SET_SETTINGS,
+    PROCESSING_REQUESTS,
+    HTTP2_SHUTDOWN,
+};
+
+enum CHUNK_MODE { NO_CHUNK, CHUNK, CHUNK_END };
+
+enum HTTP2_ERRORS
+{
+    NO_ERROR,
+    PROTOCOL_ERROR,
+    INTERNAL_ERROR,
+    FLOW_CONTROL_ERROR,
+    SETTINGS_TIMEOUT,
+    STREAM_CLOSED,
+    FRAME_SIZE_ERROR,
+    REFUSED_STREAM,
+    CANCEL,
+    COMPRESSION_ERROR,
+    CONNECT_ERROR,
+    ENHANCE_YOUR_CALM,
+    INADEQUATE_SECURITY,
+    HTTP_1_1_REQUIRED,
+};
+
+enum HTTP2_FRAME_TYPE
+{
+    DATA,
+    HEADERS,
+    PRIORITY,
+    RST_STREAM,
+    SETTINGS,
+    PUSH_PROMISE,
+    PING,
+    GOAWAY,
+    WINDOW_UPDATE,
+    CONTINUATION,
+    ALTSVC,
+    ORIGIN = 0x0C,
+    CACHE_DIGEST = 0x0D,
+    PRIORITY_UPDATE = 0x10,
+};
+
+enum HTTP2_FLAGS
+{
+    FLAG_ACK = 0x1,
+    FLAG_END_STREAM = 0x1,
+    FLAG_END_HEADERS = 0x4,
+    FLAG_PADDED = 0x8,
+    FLAG_PRIORITY = 0x20
+};
+
+enum SOURCE_DATA
+{
+    NO_SOURCE,
+    DIRECTORY,
+    FROM_FILE,
+    FROM_DATA_BUFFER,
+    DYN_PAGE,
+};
+
+enum CGI_TYPE { CGI, PHPCGI, PHPFPM, FASTCGI, SCGI, };
+
+enum CGI_STATUS
+{
+    NO_CGI,
+    CGI_CREATE,
+    FASTCGI_BEGIN,
+    FASTCGI_PARAMS,
+    SCGI_PARAMS,
+    CGI_STDIN,
+    CGI_STDOUT,
+};
+
+#define FCGI_KEEP_CONN  1
+#define FCGI_RESPONDER  1
+
+#define FCGI_VERSION_1           1
+#define FCGI_BEGIN_REQUEST       1
+#define FCGI_ABORT_REQUEST       2
+#define FCGI_END_REQUEST         3
+#define FCGI_PARAMS              4
+#define FCGI_STDIN               5
+#define FCGI_STDOUT              6
+#define FCGI_STDERR              7
+#define FCGI_DATA                8
+#define FCGI_GET_VALUES          9
+#define FCGI_GET_VALUES_RESULT  10
+#define FCGI_UNKNOWN_TYPE       11
+#define FCGI_MAXTYPE            (FCGI_UNKNOWN_TYPE)
+#define requestId               1
+
+extern char **environ;
+extern const char *static_tab[][2];
+
+#endif

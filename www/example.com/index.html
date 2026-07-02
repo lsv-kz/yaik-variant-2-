@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Test HTML</title>
+<meta charset="UTF-8">
+<style>
+    body {
+        margin-left:100px;
+        margin-right:50px;
+        background-color: rgb(122, 122, 82);
+        color: rgb(200,240,120);
+    }
+
+    a {
+      text-decoration: none;
+      color: rgb(255, 209, 26);
+    }
+
+    h3 {
+      color: rgb(200,240,120);
+    }
+</style>
+</head>
+
+<body>
+<h3>example.com/</h3>
+<h3 style="color:gold">Test PHP</h3>
+<form action="env.php" method="get" target="_blank">
+    <input type="hidden" name="name" value="фыва">
+    <input type="submit" value="env.php(get)">
+</form>
+<form action="env.php" method="post" target="_blank">
+    <input type="hidden" name="name" value="фыва">
+    <input type="submit" value="env.php(post)">
+</form>
+<br>
+<h3 style="color:gold">Test CGI</h3>
+<form action="/cgi-bin/script" method="get" target="_blank">
+    <input type="hidden" name="firstname" value="aaa">
+    <input type="hidden" name="lastname" value="bbb">
+    <input type="submit" value="/cgi-bin/script (get)">
+</form>
+<form action="/cgi-bin/script" method="post" target="_blank">
+    <input type="hidden" name="firstname" value="aaa">
+    <input type="hidden" name="lastname" value="bbb">
+    <input type="submit" value="/cgi-bin/script (post)">
+</form>
+<br>
+<hr>
+<p id="time"></p>
+<script>
+    var d = new Date();
+    document.getElementById("time").innerHTML = d.toString();
+</script>
+</body>
+</html>

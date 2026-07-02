@@ -1,0 +1,4 @@
+*.o
+yaik
+logs/*.log
+certs/*
