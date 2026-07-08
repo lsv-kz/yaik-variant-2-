@@ -70,35 +70,14 @@ http2::~http2()
     start_stream = end_stream = NULL;
 }
 //----------------------------------------------------------------------
-Stream *http2::add(unsigned long numConn, unsigned long numReq)
+Stream *http2::new_stream(unsigned long numConn, unsigned long numReq)
 {
-    if (num_streams >= max_streams)
-    {
-        print_err("<%s:%d> Error: num streams: %d\n", __func__, __LINE__, num_streams);
-        return NULL;
-    }
-
     Stream *resp = NULL;
     resp = new(std::nothrow) Stream;
     if (!resp)
     {
         print_err("<%s:%d> Error: %s\n", __func__, __LINE__, strerror(errno));
-        return NULL;
-    }
-
-    resp->numConn = numConn;
-    resp->numReq = numReq;
-
-    resp->type = type;
-    resp->flags = flags;
-    resp->id = id;
-
-    resp->stream_window_size = init_window_size;
-
-    int ret = parse(resp);
-    if (ret)
-    {
-        delete resp;
+        set_frame_goaway(&c, CANCEL);
         return NULL;
     }
 
@@ -112,6 +91,29 @@ Stream *http2::add(unsigned long numConn, unsigned long numReq)
     else
         start_stream = end_stream = resp;
     ++num_streams;
+
+    resp->numConn = numConn;
+    resp->numReq = numReq;
+
+    resp->type = type;
+    resp->flags = flags;
+    resp->id = id;
+
+    if (num_streams > max_streams)
+    {
+        print_err("<%s:%d> Error: num streams: %d\n", __func__, __LINE__, num_streams);
+        set_rst_stream(&c, resp, CANCEL);
+        return NULL;
+    }
+
+    resp->stream_window_size = init_window_size;
+
+    int ret = parse(resp);
+    if (ret)
+    {
+        set_rst_stream(&c, resp, CANCEL);
+        return NULL;
+    }
 
     if (conf->PrintDebugMsg)
         print_err(resp, "<%s:%d> num streams: %d, id=%d\n", __func__, __LINE__, num_streams, id);

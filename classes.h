@@ -514,7 +514,7 @@ struct Connect
     http2 *h2;
     //------------------------------------------------------------------
     Connect()
-    {//fprintf(stderr, "<%s:%d> ========\n", __func__, __LINE__);
+    {
         numReq = 1;
         err = 0;
         client_timer = 0;
@@ -526,6 +526,8 @@ struct Connect
         h2 = NULL;
         serv = NULL;
         SecureConnect = false;
+        remoteAddr[0] = 0;
+        remotePort[0] = 0;
     }
     
     ~Connect()
@@ -639,7 +641,7 @@ struct http2
 
     http2();
     ~http2();
-    Stream *add(unsigned long, unsigned long);
+    Stream *new_stream(unsigned long, unsigned long);
     void del_from_list(Stream *r);
     int close_stream(int id);
     int set_window_size(int id, long n);

@@ -10,9 +10,9 @@ Socket *sockets_end;
 
 Socket *sock_struct_storage;
 
-static int num_conn, num_structs;
+static int num_conn, num_sock_structs;
 
-int create_connect(Socket *s, unsigned long *allConn);
+int create_secure_connect(Socket *s, unsigned long *allConn);
 
 int create_nonsecure_connect(const Server *serv,
                     int clientSocket,
@@ -93,7 +93,7 @@ static Socket *create_sock_struct(int sock, const Server *serv)
         s = new(nothrow) Socket;
         if (s == NULL)
             return NULL;
-        ++num_structs;
+        ++num_sock_structs;
     }
 
     int flags = 1;
@@ -160,7 +160,7 @@ unique_lock<mutex> lk(mtx_num_conn);
         cond_num_conn.wait(lk);
     }
 
-    if ((num_structs >= limit_number_sock_struct) && (sock_struct_storage == NULL))
+    if ((num_sock_structs >= limit_number_sock_struct) && (sock_struct_storage == NULL))
         return true;
 
     if (num_conn < (conf->MaxAcceptConnections - conf->num_servers))
@@ -214,7 +214,7 @@ void accept_connect()
         poll_fd[num_poll].events = POLLIN;
     }
 
-    if (num_poll != conf->num_servers) // one server - one socket
+    if (num_poll != conf->num_servers)
     {
         run = false;
         print_err("<%s:%d> Error: num_poll != conf->num_servers\n", __func__, __LINE__);
@@ -359,8 +359,6 @@ void accept_connect()
                             c->clientSocket = s->sock;
                             c->ServerPort = s->serv->port;
                             c->serverSocket = s->serv->sock;
-                            c->remoteAddr[0] = 0;
-                            c->remotePort[0] = 0;
                             h1->resp.httpMethod = get_int_method(buf);
                             c->numConn = ++allConn;
                             c->Protocol = P_HTTP1;
@@ -403,7 +401,7 @@ void accept_connect()
                 int ret = ssl_accept(s);
                 if (ret == 1)
                 {
-                    int ret = create_connect(s, &allConn);
+                    int ret = create_secure_connect(s, &allConn);
                     delete_from_list(s);
                     if (ret < 0)
                     {
@@ -428,14 +426,15 @@ void accept_connect()
     delete_sockets_list();
     close_event_handler();
     work_thr.join();
-    print_err("<%s:%d> all_conn=%lu, open_conn=%d, %d\n", __func__, __LINE__, allConn, num_conn, num_structs);
+    print_err("<%s:%d> all_conn=%lu, open_conn=%d, %d\n", __func__, __LINE__, allConn, num_conn, num_sock_structs);
     if (poll_fd)
         delete [] poll_fd;
     usleep(100000);
 }
 //======================================================================
-int create_connect(Socket *s, unsigned long *allConn)
+int create_secure_connect(Socket *s, unsigned long *allConn)
 {
+    ++(*allConn);
     Connect *c = NULL;
     if (s->Protocol == P_HTTP2)
     {
@@ -471,7 +470,7 @@ int create_connect(Socket *s, unsigned long *allConn)
         }
     }
 
-    c->numConn = ++(*allConn);
+    c->numConn = *allConn;
     c->ServerPort = s->serv->port;
     c->serverSocket = s->serv->sock;
     c->clientSocket = s->sock;

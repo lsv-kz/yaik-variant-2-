@@ -987,8 +987,6 @@ void EventHandlerClass::push_wait_list(Connect *c)
 {
     struct sockaddr_storage clientAddr;
     socklen_t addrSize = sizeof(struct sockaddr_storage);
-    c->remoteAddr[0] = 0;
-    c->remotePort[0] = 0;
     if (getpeername(c->clientSocket, (struct sockaddr*)&clientAddr, &addrSize) == 0)
     {
         getnameinfo((struct sockaddr *)&clientAddr,

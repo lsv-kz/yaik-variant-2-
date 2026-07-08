@@ -127,6 +127,7 @@ void add_header(Stream *r, int ind);
 void add_header(BytesArray& ba, int ind, const char *val);
 void add_header(BytesArray& ba, const char *name, const char *val);
 void add_cgi_headers(Stream *r);
+void set_frame_goaway(Connect *c, HTTP2_ERRORS error);
 void set_rst_stream(Connect *c, Stream *resp, HTTP2_ERRORS error);
 //--------------------------- log.cpp ----------------------------------
 void create_logfiles(const std::string &);

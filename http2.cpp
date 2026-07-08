@@ -139,7 +139,7 @@ static void set_frame_window_update(Connect *c, int len)// post data
     c->h2->frame_win_update.ncpy(s, 13);
 }
 //======================================================================
-static void set_frame_goaway(Connect *c, HTTP2_ERRORS error)
+void set_frame_goaway(Connect *c, HTTP2_ERRORS error)
 {
     char s[] = "\x0\x0\x8\x7\x0\x0\x0\x0\x0"
                "\x0\x0\x0\x0\x0\x0\x0\x0";
@@ -949,11 +949,11 @@ int EventHandlerClass::parse_frame(Connect *c)
         if (conf->PrintDebugMsg)
             hex_print_stderr(__func__, __LINE__, c->h2->body.ptr(), c->h2->body.size());
         c->client_timer = 0;
-        Stream *resp = c->h2->add(c->numConn, c->numReq);
+        Stream *resp = c->h2->new_stream(c->numConn, c->numReq);
         c->numReq++;
         if (resp == NULL)
         {
-            print_err(c, "<%s:%d> Error id=%d \n", __func__, __LINE__, c->h2->id);
+            print_err(c, "<%s:%d> Error create new stream id=%d \n", __func__, __LINE__, c->h2->id);
             return 0;
         }
 
@@ -1163,12 +1163,7 @@ int EventHandlerClass::send_frames_(Connect *c)
         }
         //--------------------------------------------------------------
         int n = c->h2->size();
-        if (n > conf->MaxConcurrentStreams)
-        {
-            print_err(c, "<%s:%d> ??? h2.size()=%d\n", __func__, __LINE__, n);
-            return -1;
-        }
-        else if (n == 0)
+        if (n == 0)
             return 0;
 
         Stream *resp = c->h2->work_stream;

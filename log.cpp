@@ -237,20 +237,30 @@ void print_log(Connect *c, Stream *resp)
     str.ncat(" - [", 4);
     str.logtimecat();
     str.ncat("] \"", 3);
-    str.strcat(get_str_method(resp->httpMethod));
-    str.ncat(" ", 1);
-    str.strcat(resp->clean_decode_path);
-
-    if (resp->decode_query_string.size())
+    if (resp->httpMethod != M_NULL)
     {
-        str.ncat("?", 1);
-        str.ncat(resp->decode_query_string.c_str(), resp->decode_query_string.size());
+        str.strcat(get_str_method(resp->httpMethod));
+        str.ncat(" ", 1);
+    }
+
+    if (resp->clean_decode_path)
+    {
+        str.strcat(resp->clean_decode_path);
+        if (resp->decode_query_string.size())
+        {
+            str.ncat("?", 1);
+            str.ncat(resp->decode_query_string.c_str(), resp->decode_query_string.size());
+        }
     }
 
     str.strcat(" HTTP/2\" ");
-    str.cat_int(resp->resp_status);
-    str.ncat(" ", 1);
-    str.cat_int(resp->send_bytes);
+    if (resp->resp_status)
+    {
+        str.cat_int(resp->resp_status);
+        str.ncat(" ", 1);
+        str.cat_int(resp->send_bytes);
+    }
+
     str.ncat(" \"", 2);
     if (resp->referer.size())
         str.ncat(resp->referer.c_str(), resp->referer.size());
