@@ -404,6 +404,7 @@ int EventHandlerClass::http1_cgi_set(Connect *c)
         {
             print_err(c, "<%s:%d> 404 Not Found\n", __func__, __LINE__);
             c->err = -RS404;
+            c->h1->resp.cgi.end = true;
             http1_end_request(c);
             return 0;
         }
@@ -1083,11 +1084,6 @@ void EventHandlerClass::close_event_handler()
     cond_thr.notify_one();
 }
 //======================================================================
-void EventHandlerClass::dec_all_cgi()
-{
-    --cgi_num_work;
-}
-//======================================================================
 void event_handler()
 {
     event_handler_cl.init();
@@ -1119,9 +1115,4 @@ void push_wait_list(Connect *c)
 void close_event_handler()
 {
     event_handler_cl.close_event_handler();
-}
-//======================================================================
-void dec_all_cgi()
-{
-    event_handler_cl.dec_all_cgi();
 }

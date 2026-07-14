@@ -50,7 +50,6 @@ struct Server
 extern const char *static_tab[][2];
 
 void print_err(const char *format, ...);
-void dec_all_cgi();
 //======================================================================
 typedef struct fcgi_list_addr
 {
@@ -178,200 +177,6 @@ public:
 //======================================================================
 extern const Config* const conf;
 //======================================================================
-struct Stream
-{
-    Stream *prev;
-    Stream *next;
-
-    unsigned long numConn;
-    unsigned long numReq;
-
-    VHost *vhost;
-
-    int id;
-    HTTP2_FRAME_TYPE type;
-    int flags;
-    time_t Time;
-
-    HTTP_METHOD httpMethod;
-
-    std::string path;
-    std::string decode_path;
-
-    std::string query_string;
-    std::string decode_query_string;
-
-    char *clean_decode_path;
-    int clean_decode_path_size;
-
-    std::string host;
-    std::string user_agent;
-    std::string referer;
-    std::string range;
-    std::string sReqContentType;
-    std::string sReqContentLen;
-
-    BytesArray buf;
-    BytesArray headers;
-    BytesArray cgi_headers;
-    BytesArray send_data;
-    BytesArray post_data;
-    BytesArray rst_stream;
-    BytesArray frame_win_update;
-
-    int resp_status;
-    const char *resp_content_type;
-    long long resp_content_len;
-    long long post_content_len;
-    long long file_size;
-    long long offset;
-    long stream_window_size;
-
-    SOURCE_DATA source_data;
-    int fd;
-
-    long long send_bytes;
-
-    bool recv_rst_stream;
-    bool send_rst_stream;
-    bool create_headers;
-    bool send_headers;
-
-    CGI_TYPE cgi_type;
-    CGI_STATUS cgi_status;
-
-    struct
-    {
-        bool start;
-        bool end;
-
-        time_t timer;
-
-        pid_t pid;
-        std::string path;
-        int to_script;
-        int from_script;
-
-        const std::string *socket;
-        int fd;
-        int i_param;
-        int size_par;
-        int fcgi_type;
-        int fcgiContentLen;
-        int fcgiPaddingLen;
-        //-----------------------
-        long window_update;
-        long window_size;
-    } cgi;
-
-    Stream()
-    {
-        vhost = NULL;
-        init();
-        numConn = 0;
-        numReq = 1;
-        id = 0;
-        Time = time(NULL);
-        clean_decode_path = NULL;
-        clean_decode_path_size = 0;
-        stream_window_size = 0;
-        recv_rst_stream = send_rst_stream = create_headers = send_headers = false;
-        cgi.window_update = 0;
-        cgi.window_size = 65535;
-    }
-
-    ~Stream()
-    {
-        if (conf->PrintDebugMsg)
-        {
-            if ((send_bytes != file_size) && (source_data == FROM_FILE))
-                print_err("<%s:%d> !!! ~Resp(%s), send_bytes=%lld(%lld), stream_window_size=%ld, id=%d \n",
-                        __func__, __LINE__, clean_decode_path, send_bytes, file_size, stream_window_size, id);
-        }
-
-        if (clean_decode_path)
-            delete [] clean_decode_path;
-
-        if (fd > 0)
-        {
-            close(fd);
-            fd = -1;
-        }
-
-        if (cgi.fd > 0)
-        {
-            close(cgi.fd);
-            cgi.fd = 1;
-        }
-
-        if (cgi.to_script > 0)
-        {
-            close(cgi.to_script);
-            cgi.to_script = -1;
-        }
-
-        if (cgi.from_script > 0)
-        {
-            close(cgi.from_script);
-            cgi.from_script = -1;
-        }
-
-        if (cgi.start)
-            dec_all_cgi();
-    }
-
-    void init()
-    {
-        ++numReq;
-        path.clear();
-        decode_path.clear();
-        decode_query_string.clear();
-        host.clear();
-        user_agent.clear();
-        referer.clear();
-        range.clear();
-
-        buf.init();
-        send_data.init();
-        post_data.init();
-        headers.init();
-        cgi_headers.init();
-
-        httpMethod = M_NULL;
-        sReqContentType.clear();
-        sReqContentLen.clear();
-        post_content_len = 0;
-
-        Time = 0;
-
-        send_headers = false;
-        create_headers = false;
-        resp_status = 0;
-
-        source_data = NO_SOURCE;
-        fd = -1;
-        file_size = 0;
-        offset = 0;
-        send_bytes = 0;
-        resp_content_len = -1;
-        resp_content_type = NULL;
-
-        cgi_status = NO_CGI;
-        cgi.timer = 0;
-        cgi.start = cgi.end = false;
-        cgi.socket = NULL;
-        cgi.fcgiContentLen = 0;
-        cgi.fcgiPaddingLen = 0;
-        cgi.fd = cgi.to_script = cgi.from_script = -1;
-        cgi.fcgi_type = 0;
-        cgi.fcgiContentLen = cgi.fcgiPaddingLen = 0;
-    }
-
-private:
-    Stream(const Stream&);
-    Stream& operator=(const Stream&);
-};
-//======================================================================
 struct Header
 {
     Header *prev;
@@ -463,13 +268,197 @@ public:
     }
 };
 //======================================================================
-struct http1;
-struct http2;
-
-struct Socket
+struct Stream
 {
-    Socket *prev;
-    Socket *next;
+    Stream *prev;
+    Stream *next;
+
+    unsigned long numConn;
+    unsigned long numReq;
+
+    VHost *vhost;
+
+    int id;
+    HTTP2_FRAME_TYPE type;
+    int flags;
+
+    HTTP_METHOD httpMethod;
+
+    std::string path;
+    std::string decode_path;
+
+    std::string query_string;
+    std::string decode_query_string;
+
+    char *clean_decode_path;
+    int clean_decode_path_size;
+
+    std::string host;
+    std::string user_agent;
+    std::string referer;
+    std::string range;
+    std::string sReqContentType;
+    std::string sReqContentLen;
+
+    BytesArray buf;
+    BytesArray headers;
+    BytesArray cgi_headers;
+    BytesArray send_data;
+    BytesArray post_data;
+    BytesArray rst_stream;
+    BytesArray frame_win_update;
+
+    int resp_status;
+    const char *resp_content_type;
+    long long resp_content_len;
+    long long post_content_len;
+    long long file_size;
+    long long offset;
+    long stream_window_size;
+
+    SOURCE_DATA source_data;
+    int fd;
+
+    long long send_bytes;
+
+    bool recv_rst_stream;
+    bool send_rst_stream;
+    bool create_headers;
+    bool send_headers;
+
+    CGI_TYPE cgi_type;
+    CGI_STATUS cgi_status;
+
+    struct
+    {
+        bool start;
+        bool end;
+
+        time_t timer;
+
+        pid_t pid;
+        std::string path;
+        int to_script;
+        int from_script;
+
+        const std::string *socket;
+        int fd;
+        int i_param;
+        int size_par;
+        int fcgi_type;
+        int fcgiContentLen;
+        int fcgiPaddingLen;
+        //-----------------------
+        long window_update;
+        long window_size;
+    } cgi;
+
+    Stream()
+    {
+        vhost = NULL;
+        init();
+        numConn = 0;
+        numReq = 1;
+        id = 0;
+        clean_decode_path = NULL;
+        clean_decode_path_size = 0;
+        stream_window_size = 0;
+        recv_rst_stream = send_rst_stream = create_headers = send_headers = false;
+        cgi.window_update = 0;
+        cgi.window_size = 65535;
+    }
+
+    ~Stream()
+    {
+        if (conf->PrintDebugMsg)
+        {
+            if ((send_bytes != file_size) && (source_data == FROM_FILE))
+                print_err("<%s:%d> !!! ~Resp(%s), send_bytes=%lld(%lld), stream_window_size=%ld, id=%d \n",
+                        __func__, __LINE__, clean_decode_path, send_bytes, file_size, stream_window_size, id);
+        }
+
+        if (clean_decode_path)
+            delete [] clean_decode_path;
+
+        if (fd > 0)
+        {
+            close(fd);
+            fd = -1;
+        }
+
+        if (cgi.fd > 0)
+        {
+            close(cgi.fd);
+            cgi.fd = 1;
+        }
+
+        if (cgi.to_script > 0)
+        {
+            close(cgi.to_script);
+            cgi.to_script = -1;
+        }
+
+        if (cgi.from_script > 0)
+        {
+            close(cgi.from_script);
+            cgi.from_script = -1;
+        }
+    }
+
+    void init()
+    {
+        ++numReq;
+        path.clear();
+        decode_path.clear();
+        decode_query_string.clear();
+        host.clear();
+        user_agent.clear();
+        referer.clear();
+        range.clear();
+
+        buf.init();
+        send_data.init();
+        post_data.init();
+        headers.init();
+        cgi_headers.init();
+
+        httpMethod = M_NULL;
+        sReqContentType.clear();
+        sReqContentLen.clear();
+        post_content_len = 0;
+
+        send_headers = false;
+        create_headers = false;
+        resp_status = 0;
+
+        source_data = NO_SOURCE;
+        fd = -1;
+        file_size = 0;
+        offset = 0;
+        send_bytes = 0;
+        resp_content_len = -1;
+        resp_content_type = NULL;
+
+        cgi_status = NO_CGI;
+        cgi.timer = 0;
+        cgi.start = cgi.end = false;
+        cgi.socket = NULL;
+        cgi.fcgiContentLen = 0;
+        cgi.fcgiPaddingLen = 0;
+        cgi.fd = cgi.to_script = cgi.from_script = -1;
+        cgi.fcgi_type = 0;
+        cgi.fcgiContentLen = cgi.fcgiPaddingLen = 0;
+    }
+
+private:
+    Stream(const Stream&);
+    Stream& operator=(const Stream&);
+};
+//======================================================================
+struct SecureAccept
+{
+    SecureAccept *prev;
+    SecureAccept *next;
     const Server *serv;
     int sock;
     int events;
@@ -479,7 +468,10 @@ struct Socket
     bool SecureConnect;
     time_t timer;
 };
-//----------------------------------------------------------------------
+//======================================================================
+struct http1;
+struct http2;
+
 struct Connect
 {
     Connect *prev;
@@ -643,7 +635,6 @@ struct http2
     ~http2();
     Stream *new_stream(unsigned long, unsigned long);
     void del_from_list(Stream *r);
-    int close_stream(int id);
     int set_window_size(int id, long n);
     Stream *get(int id);
     Stream *get();
@@ -746,6 +737,7 @@ class EventHandlerClass
     void fcgi_worker(Connect *c, int i);
 
     void http1_end_request(Connect *c);
+    void http2_end_request(http2 *h2, int id);
 
     int http1_cgi_set(Connect *c);
     void http1_cgi_poll(Connect *c, int);
@@ -768,7 +760,6 @@ public:
     void set_poll();
     int _poll();
 
-    void dec_all_cgi();
     void push_wait_list(Connect *c);
     void close_event_handler();
     void close_connections();

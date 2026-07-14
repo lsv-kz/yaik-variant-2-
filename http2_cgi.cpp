@@ -35,14 +35,14 @@ int EventHandlerClass::cgi_fork(Connect *c, Stream *resp, int* serv_cgi, int* cg
         //----------------------- child --------------------------------
         close(cgi_serv[0]);
         cgi_serv[0] = -1;
-/*
+
         int fd = open("/dev/null", O_RDONLY);
         if (fd > 0)
         {
             dup2(fd, STDERR_FILENO);
             close(fd);
         }
-*/
+
         if (resp->httpMethod == M_POST)
         {
             close(serv_cgi[1]);
@@ -338,7 +338,7 @@ int is_cgi(Stream *resp)
 void EventHandlerClass::cgi_worker(Connect *c, Stream *resp, int cgi_ind_poll)
 {
     int revents = poll_fd[cgi_ind_poll].revents;
-    int events = poll_fd[cgi_ind_poll].revents;
+    int events = poll_fd[cgi_ind_poll].events;
     int fd = poll_fd[cgi_ind_poll].fd;
 
     if (resp->cgi_status == CGI_STDIN)

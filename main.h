@@ -154,7 +154,7 @@ const char *ssl_strerror(int err);
 int ssl_read(Connect *c, char *buf, int len);
 int ssl_peek(Connect *c, char *buf, int len);
 int ssl_write(Connect *c, const char *buf, int len, int id);
-int ssl_accept(Socket *s);
+int ssl_accept(SecureAccept *s);
 //----------------------------------------------------------------------
 
 

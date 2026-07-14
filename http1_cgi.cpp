@@ -116,7 +116,7 @@ int EventHandlerClass::cgi_stdout(Connect *c, int fd)
 void EventHandlerClass::cgi_worker(Connect *con, int cgi_ind_poll)
 {
     int revents = poll_fd[cgi_ind_poll].revents;
-    int events = poll_fd[cgi_ind_poll].revents;
+    int events = poll_fd[cgi_ind_poll].events;
     int fd = poll_fd[cgi_ind_poll].fd;
 
     if (con->h1->resp.cgi_status == CGI_STDIN)

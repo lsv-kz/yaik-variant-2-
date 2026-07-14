@@ -185,7 +185,7 @@ int fcgi_create_params(Connect *c, Stream *resp)
 void EventHandlerClass::fcgi_worker(Connect* c, Stream *resp, int cgi_ind_poll)
 {
     int revents = poll_fd[cgi_ind_poll].revents;
-    int events = poll_fd[cgi_ind_poll].revents;
+    int events = poll_fd[cgi_ind_poll].events;
     int fd = poll_fd[cgi_ind_poll].fd;
 
     if (resp->cgi_status == FASTCGI_BEGIN)

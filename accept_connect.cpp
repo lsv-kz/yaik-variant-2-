@@ -5,22 +5,22 @@ using namespace std;
 static mutex mtx_num_conn;
 static condition_variable cond_num_conn;
 
-Socket *sockets_start;
-Socket *sockets_end;
+SecureAccept *sockets_start;
+SecureAccept *sockets_end;
 
-Socket *sock_struct_storage;
+SecureAccept *sock_struct_storage;
 
 static int num_conn, num_sock_structs;
 
-int create_secure_connect(Socket *s, unsigned long *allConn);
+int create_secure_connect(SecureAccept *s, unsigned long *allConn);
 
 int create_nonsecure_connect(const Server *serv,
                     int clientSocket,
                     unsigned long *allConn);
-static void close_connect(Socket *c);
+static void close_connect(SecureAccept *c);
 static const int limit_number_sock_struct = 100;
 //======================================================================
-static void push_list(Socket *s)
+static void push_list(SecureAccept *s)
 {
     s->next = NULL;
     s->prev = sockets_end;
@@ -31,7 +31,7 @@ static void push_list(Socket *s)
         sockets_start = s;
 }
 //======================================================================
-static void delete_from_list(Socket *s)
+static void delete_from_list(SecureAccept *s)
 {
     if (s->prev)
         s->prev->next = s->next;
@@ -52,7 +52,7 @@ void delete_sockets_list()
 {
     if (sockets_start)
     {
-        Socket *s = sockets_start, *next = NULL;
+        SecureAccept *s = sockets_start, *next = NULL;
         for ( ; s; s = next)
         {
             next = s->next;
@@ -62,7 +62,7 @@ void delete_sockets_list()
 
     if (sock_struct_storage)
     {
-        Socket *s = sock_struct_storage, *next = NULL;
+        SecureAccept *s = sock_struct_storage, *next = NULL;
         for ( ; s; s = next)
         {
             next = s->next;
@@ -78,9 +78,9 @@ mtx_num_conn.lock();
 mtx_num_conn.unlock();
 }
 //======================================================================
-static Socket *create_sock_struct(int sock, const Server *serv)
+static SecureAccept *create_accept_struct(int sock, const Server *serv)
 {
-    Socket *s;
+    SecureAccept *s;
     if (sock_struct_storage)
     {
         s = sock_struct_storage;
@@ -90,7 +90,7 @@ static Socket *create_sock_struct(int sock, const Server *serv)
     }
     else
     {
-        s = new(nothrow) Socket;
+        s = new(nothrow) SecureAccept;
         if (s == NULL)
             return NULL;
         ++num_sock_structs;
@@ -225,7 +225,7 @@ void accept_connect()
     {
 
         time_t timer = time(NULL);
-        Socket *s = sockets_start, *next = NULL;
+        SecureAccept *s = sockets_start, *next = NULL;
         for ( num_poll = conf->num_servers; s; s = next )
         {
             next = s->next;
@@ -306,7 +306,7 @@ void accept_connect()
                     }
                     else
                     {
-                        Socket *s = create_sock_struct(clientSocket, serv);
+                        SecureAccept *s = create_accept_struct(clientSocket, serv);
                         if (s == NULL)
                         {
                             run = false;
@@ -432,7 +432,7 @@ void accept_connect()
     usleep(100000);
 }
 //======================================================================
-int create_secure_connect(Socket *s, unsigned long *allConn)
+int create_secure_connect(SecureAccept *s, unsigned long *allConn)
 {
     ++(*allConn);
     Connect *c = NULL;
@@ -540,7 +540,7 @@ int create_nonsecure_connect(const Server *serv,
     return 0;
 }
 //======================================================================
-void close_connect(Socket *s)
+void close_connect(SecureAccept *s)
 {
     delete_from_list(s);
     if (s->ssl)

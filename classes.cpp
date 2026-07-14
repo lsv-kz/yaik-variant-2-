@@ -142,40 +142,6 @@ void http2::del_from_list(Stream *r)
     --num_streams;
 }
 //----------------------------------------------------------------------
-int http2::close_stream(int id)
-{
-    Stream *r = start_stream, *next = NULL;
-    for ( ; r; r = next)
-    {
-        next = r->next;
-        if (r->id == id)
-        {
-            if (work_stream == r)
-            {
-                work_stream = next;
-            }
-
-            if (r->cgi.start)
-            {
-                if (conf->PrintDebugMsg)
-                    print_err("<%s:%d>~~~~~~~ close cgi stream, id=%d \n", __func__, __LINE__, r->id);
-                if (r->cgi_type <= PHPCGI)
-                {
-                    kill_chld(r->cgi.pid);
-                }
-            }
-
-            if (conf->PrintDebugMsg)
-                print_err("<%s:%d>~~~~~~~ Close Stream, id=%d \n", __func__, __LINE__, r->id);
-            del_from_list(r);
-            delete r;
-            return id;
-        }
-    }
-
-    return -1;
-}
-//----------------------------------------------------------------------
 int http2::set_window_size(int id, long n)
 {
     Stream *r = start_stream, *next = NULL;

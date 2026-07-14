@@ -1011,7 +1011,7 @@ int EventHandlerClass::parse_frame(Connect *c)
             if (resp->send_data.size() == 0)
             {
                 print_log(c, resp);
-                c->h2->close_stream(resp->id);
+                http2_end_request(c->h2, resp->id);
             }
             else
                 resp->recv_rst_stream = true;
@@ -1258,7 +1258,7 @@ int EventHandlerClass::send_frame_headers(Connect *c, Stream *resp)
             }
 
             print_log(c, resp);
-            c->h2->close_stream(resp->id);
+            http2_end_request(c->h2, resp->id);
             return 0;
         }
         else
@@ -1332,7 +1332,7 @@ int EventHandlerClass::send_frame_data(Connect *c, Stream *resp)
         }
 
         print_log(c, resp);
-        c->h2->close_stream(resp->id);
+        http2_end_request(c->h2, resp->id);
         return 0;
     }
     else
@@ -1476,7 +1476,7 @@ int EventHandlerClass::send_frame_rststream(Connect *c, Stream *resp)
     resp->resp_status = 0;
     resp->referer = "send frame RST_STREAM";
     print_log(c, resp);
-    c->h2->close_stream(resp->id);
+    http2_end_request(c->h2, resp->id);
     return 0;
 }
 //======================================================================
@@ -1531,6 +1531,59 @@ int EventHandlerClass::send_window_update(Connect *c, Stream *resp)
     resp->cgi.window_update = 0;
     resp->frame_win_update.init();
     return 0;
+}
+//======================================================================
+void EventHandlerClass::http2_end_request(http2 *h2, int id)
+{
+    Stream *r = h2->get(id);
+    if (r == NULL)
+    {
+        print_err("<%s:%d> Error stream id=%d not found\n", __func__, __LINE__, id);
+        return;
+    }
+
+    if (h2->work_stream == r)
+    {
+        h2->work_stream = r->next;
+    }
+
+    if (r->cgi.start)
+    {
+        if (conf->PrintDebugMsg)
+            print_err("<%s:%d>~~~~~~~ close cgi stream, id=%d \n", __func__, __LINE__, id);
+        if (r->cgi_type <= PHPCGI)
+        {
+            if (r->cgi.from_script > 0)
+            {
+                close(r->cgi.from_script);
+                r->cgi.from_script = -1;
+            }
+
+            if (r->cgi.to_script > 0)
+            {
+                close(r->cgi.to_script);
+                r->cgi.to_script = -1;
+            }
+
+            kill_chld(r->cgi.pid);
+        }
+        else
+        {
+            if (r->cgi.fd > 0)
+            {
+                shutdown(r->cgi.fd, SHUT_RDWR);
+                close(r->cgi.fd);
+                r->cgi.fd = -1;
+            }
+        }
+
+        --cgi_num_work;
+    }
+
+    if (conf->PrintDebugMsg)
+        print_err("<%s:%d>~~~~~~~ Close Stream, id=%d \n", __func__, __LINE__, r->id);
+    h2->del_from_list(r);
+    delete r;
 }
 //======================================================================
 const char *static_tab[][2] = {

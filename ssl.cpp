@@ -240,7 +240,7 @@ int ssl_write(Connect *con, const char *buf, int len, int id)
     return ret;
 }
 //======================================================================
-int ssl_accept(Socket *c)
+int ssl_accept(SecureAccept *c)
 {
     ERR_clear_error();
     int ret = SSL_accept(c->ssl);

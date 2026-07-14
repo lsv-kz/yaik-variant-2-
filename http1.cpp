@@ -302,8 +302,10 @@ int EventHandlerClass::http1_worker(Connect *c, int revents)
                     return ERR_TRY_AGAIN;
                 c->h1->resp.headers.init();
                 c->h1->resp.send_headers = true;
-                if (c->h1->resp.httpMethod == M_HEAD)
+                if ((c->h1->resp.httpMethod == M_HEAD) || (c->h1->resp.resp_status == RS204))
+                {
                     http1_end_request(c);
+                }
                 else
                 {
                     if (c->h1->resp.resp_content_len == 0)
