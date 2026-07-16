@@ -178,7 +178,7 @@ void accept_connect()
     poll_fd = new(nothrow) struct pollfd [conf->num_servers + conf->MaxAcceptConnections];
     if (!poll_fd)
     {
-        print_err("<%s:%d> Error malloc(): %s\n", __func__, __LINE__, strerror(errno));
+        print_err("<%s:%d> Error new(): %s\n", __func__, __LINE__, strerror(errno));
         exit(EXIT_FAILURE);
     }
 /*
@@ -371,7 +371,7 @@ void accept_connect()
                         }
                         else
                         {
-                            print_err("<%s:%d> Error malloc(): %s\n", __func__, __LINE__, strerror(errno));
+                            print_err("<%s:%d> Error new(): %s\n", __func__, __LINE__, strerror(errno));
                         }
 
                         delete_from_list(s);
@@ -405,7 +405,6 @@ void accept_connect()
                     delete_from_list(s);
                     if (ret < 0)
                     {
-                        print_err("<%s:%d> Error Protocol: %s\n", __func__, __LINE__, get_str_protocol(s->Protocol));
                         close_connect(s);
                     }
                 }
@@ -448,7 +447,7 @@ int create_secure_connect(SecureAccept *s, unsigned long *allConn)
         }
         else
         {
-            print_err("<%s:%d> Error malloc(): %s\n", __func__, __LINE__, strerror(errno));
+            print_err("<%s:%d> Error new(): %s\n", __func__, __LINE__, strerror(errno));
             return -1;
         }
     }
@@ -465,9 +464,14 @@ int create_secure_connect(SecureAccept *s, unsigned long *allConn)
         }
         else
         {
-            print_err("<%s:%d> Error malloc(): %s\n", __func__, __LINE__, strerror(errno));
+            print_err("<%s:%d> Error new(): %s\n", __func__, __LINE__, strerror(errno));
             return -1;
         }
+    }
+    else
+    {
+        print_err("<%s:%d> Error Protocol: %s\n", __func__, __LINE__, get_str_protocol(s->Protocol));
+        return -1;
     }
 
     c->numConn = *allConn;
@@ -493,7 +497,7 @@ int create_nonsecure_connect(const Server *serv,
     http1 *h1 = new(nothrow) http1;
     if (h1 == NULL)
     {
-        print_err("<%s:%d> Error malloc(): %s\n", __func__, __LINE__, strerror(errno));
+        print_err("<%s:%d> Error new(): %s\n", __func__, __LINE__, strerror(errno));
         return -1;
     }
 

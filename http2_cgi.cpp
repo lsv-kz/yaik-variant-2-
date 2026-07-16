@@ -125,7 +125,8 @@ int EventHandlerClass::cgi_fork(Connect *c, Stream *resp, int* serv_cgi, int* cg
         }
 
     to_pipe:
-        char err_msg[] = "Status: 500 Internal Server Error\r\n"
+        {
+            char err_msg[] = "Status: 500 Internal Server Error\r\n"
                 "Content-type: text/html; charset=UTF-8\r\n"
                 "\r\n"
                 "<!DOCTYPE html>\n"
@@ -138,7 +139,8 @@ int EventHandlerClass::cgi_fork(Connect *c, Stream *resp, int* serv_cgi, int* cg
                 "<p> 500 Internal Server Error</p>\n"
                 "</body>\n"
                 "</html>";
-        write(STDOUT_FILENO, err_msg, strlen(err_msg));
+            write(STDOUT_FILENO, err_msg, strlen(err_msg));
+        }
         close(STDOUT_FILENO);
         exit(EXIT_FAILURE);
     }

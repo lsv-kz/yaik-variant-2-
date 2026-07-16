@@ -363,7 +363,8 @@ struct Stream
         clean_decode_path = NULL;
         clean_decode_path_size = 0;
         stream_window_size = 0;
-        recv_rst_stream = send_rst_stream = create_headers = send_headers = false;
+        recv_rst_stream = send_rst_stream = false;
+        create_headers = send_headers = false;
         cgi.window_update = 0;
         cgi.window_size = 65535;
     }
