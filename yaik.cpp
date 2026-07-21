@@ -5,8 +5,59 @@ using namespace std;
 const char *nameConfifFile = "yaik.conf";
 static string confPath;
 
+const char *namePidFile = "/yaik.pid";
+static string pidFile;
+
 void print_config();
 int set_uid();
+
+static bool restartServer = false;
+extern bool wait_close_conn;
+//======================================================================
+void print_help(const char *name)
+{
+    fprintf(stderr, "Usage: %s [-h] [-p] [-s signal]\n"
+                    "Options:\n"
+                    "   -h                           : help\n"
+                    "   -p                           : print parameters\n"
+                    "   -s signal                    : restart, close, abort\n", name);
+}
+//======================================================================
+int send_signal(const char *opt)
+{
+    int sig_send;
+    if (!strcmp(opt, "restart"))
+        sig_send = SIGUSR1;
+    else if (!strcmp(opt, "close"))
+        sig_send = SIGUSR2;
+    else if (!strcmp(opt, "abort"))
+        sig_send = SIGABRT;
+    else
+    {
+        fprintf(stderr, "<%s:%d> Error option: %s\n", __func__, __LINE__, opt);
+        return 1;
+    }
+
+    pidFile = conf->PidFileDir + namePidFile;
+    FILE *fpid = fopen(pidFile.c_str(), "r");
+    if (!fpid)
+    {
+        fprintf(stderr, "<%s:%d> Error open PidFile(%s): %s\n", __func__, __LINE__, pidFile.c_str(), strerror(errno));
+        return 1;
+    }
+
+    pid_t pid;
+    fscanf(fpid, "%u", &pid);
+    fclose(fpid);
+
+    if (kill(pid, sig_send))
+    {
+        fprintf(stderr, "<%s:%d> Error kill(pid=%u, %s): %s\n", __func__, __LINE__, pid, strsignal(sig_send), strerror(errno));
+        return 1;
+    }
+
+    return 0;
+}
 //======================================================================
 static void signal_handler(int signo)
 {
@@ -29,14 +80,23 @@ static void signal_handler(int signo)
         fprintf(stderr, "[%s] - <%s> ####### SIGSEGV #######\n", log_time().c_str(), __func__);
         abort();
     }
+    else if (signo == SIGUSR1)
+    {
+        fprintf(stderr, "[%s] - <%s> ####### SIGUSR1 #######\n", log_time().c_str(), __func__);
+        restartServer = true;
+        wait_close_conn = true;
+    }
+    else if (signo == SIGUSR2)
+    {
+        fprintf(stderr, "[%s] - <%s> ####### SIGUSR2 #######\n", log_time().c_str(), __func__);
+        wait_close_conn = true;
+    }
     else
         fprintf(stderr, "[%s] - <%s> ? signo=%d (%s)\n", log_time().c_str(), __func__, signo, strsignal(signo));
 }
 //======================================================================
 int main(int argc, char *argv[])
 {
-    pid_t pid;
-
     if (signal(SIGPIPE, SIG_IGN) == SIG_ERR)
     {
         fprintf(stderr, "<%s:%d> Error signal(SIGPIPE): %s\n", __func__, __LINE__, strerror(errno));
@@ -54,6 +114,18 @@ int main(int argc, char *argv[])
         fprintf(stderr, "<%s:%d> Error signal(SIGSEGV): %s\n", __func__, __LINE__, strerror(errno));
         return 1;
     }
+
+    if (signal(SIGUSR1, signal_handler) == SIG_ERR)
+    {
+        fprintf(stderr, "<%s:%d> Error signal(SIGUSR1): %s\n", __func__, __LINE__, strerror(errno));
+        return 1;
+    }
+
+    if (signal(SIGUSR2, signal_handler) == SIG_ERR)
+    {
+        fprintf(stderr, "<%s:%d> Error signal(SIGUSR2): %s\n", __func__, __LINE__, strerror(errno));
+        return 1;
+    }
     //------------------------------------------------------------------
     confPath = nameConfifFile;
     if (read_conf_file(confPath.c_str()))
@@ -65,9 +137,54 @@ int main(int argc, char *argv[])
 
     cout << "   ===============================\n";
     cout << "   DocumentRoot : " << conf->DocumentRoot.c_str() << "\n";
-    cout << "   ScriptPath : " << conf->ScriptPath.c_str() << "\n";
     //------------------------------------------------------------------
-    create_logfiles(conf->LogPath);
+    if (argc > 1)
+    {
+        int c;
+        while ((c = getopt(argc, argv, "hps:")) != -1)
+        {
+            switch (c)
+            {
+                case 's':
+                    if (send_signal(optarg))
+                    {
+                        print_help(argv[0]);
+                        return 1;
+                    }
+                    break;
+                case 'h':
+                    print_help(argv[0]);
+                    break;
+                case 'p':
+                    print_config();
+                    break;
+                default:
+                    print_help(argv[0]);
+                    return 0;
+            }
+        }
+
+        return 0;
+    }
+    //------------------------------------------------------------------
+    create_logfiles(conf->LogDir);
+    //------------------------------------------------------------------
+    if (create_servers())
+    {
+        return 1;
+    }
+    //------------------------------------------------------------------
+    pidFile = conf->PidFileDir + namePidFile;
+    FILE *fpid = fopen(pidFile.c_str(), "w");
+    if (!fpid)
+    {
+        fprintf(stderr, "<%s:%d> Error fopen PidFile(%s): %s\n", __func__, __LINE__, pidFile.c_str(), strerror(errno));
+        free_servers();
+        return 1;
+    }
+
+    fprintf(fpid, "%u\n", getpid());
+    fclose(fpid);
     //------------------------------------------------------------------
     if (conf->servers_list)
     {
@@ -101,7 +218,7 @@ int main(int argc, char *argv[])
         }
     }
     //------------------------------------------------------------------
-    pid = getpid();
+    pid_t pid = getpid();
     cout << "\n[" << get_time().c_str() << "] - server \"" << conf->ServerSoftware.c_str()
          << "\nhardware_concurrency = " << thread::hardware_concurrency() << "\n";
     cout << "\nDocumentRoot: " << conf->DocumentRoot.c_str() << "\n";
@@ -134,31 +251,19 @@ int main(int argc, char *argv[])
     //------------------------------------------------------------------
     accept_connect();
 
-    if (conf->servers_list)
-    {
-        Server *serv = conf->servers_list;
-        for ( ; serv; serv = serv->next)
-        {
-            if (serv->sock > 0)
-            {
-                shutdown(serv->sock, SHUT_RDWR);
-                close(serv->sock);
-                serv->sock = -1;
-            }
+    free_servers();
+    remove(pidFile.c_str());
 
-            if (serv->SecureConnect)
-            {
-                VHost *h = serv->vhosts;
-                for ( ; h; h = h->next)
-                {
-                    if (h->ctx)
-                    {
-                        SSL_CTX_free(h->ctx);
-                        h->ctx = NULL;
-                    }
-                }
-            }
-        }
+    if (restartServer)
+    {
+        print_err("<%s:%d> ***** Restart *****\n\n", __func__, __LINE__);
+        execl(argv[0], argv[0], NULL);
+        print_err("<%s:%d> Error execl(): %s\n", __func__, __LINE__, strerror(errno));
+        exit(1);
+    }
+    else
+    {
+        print_err("<%s:%d> ***** Close *****\n", __func__, __LINE__);
     }
 
     return 0;
@@ -193,8 +298,9 @@ void print_config()
     cout << "   PrintDebugMsg          : " << conf->PrintDebugMsg
          << "\n   ServerSoftware         : " << conf->ServerSoftware.c_str()
          << "\n   DocumentRoot           : " << conf->DocumentRoot.c_str()
-         << "\n   ScriptPath             : " << conf->ScriptPath.c_str()
-         << "\n   LogPath                : " << conf->LogPath.c_str()
+         << "\n   ScriptDir              : " << conf->ScriptDir.c_str()
+         << "\n   LogDir                 : " << conf->LogDir.c_str()
+         << "\n   PidFileDir             : " << conf->PidFileDir.c_str()
          << "\n   UsePHP                 : " << conf->UsePHP.c_str()
          << "\n   PathPHP                : " << conf->PathPHP.c_str()
          << "\n   ListenBacklog          : " << conf->ListenBacklog

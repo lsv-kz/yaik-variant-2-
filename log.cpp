@@ -107,7 +107,7 @@ mtxLog.lock();
         else
             create_time = time(NULL);
         close(flog_err);
-        create_error_logfile(conf->LogPath);
+        create_error_logfile(conf->LogDir);
         num_logerr_records = 0;
     }
 mtxLog.unlock();
@@ -155,7 +155,7 @@ mtxLog.lock();
         else
             create_time = time(NULL);
         close(flog_err);
-        create_error_logfile(conf->LogPath);
+        create_error_logfile(conf->LogDir);
         num_logerr_records = 0;
     }
 mtxLog.unlock();
@@ -209,7 +209,7 @@ mtxLog.lock();
         else
             create_time = time(NULL);
         close(flog_err);
-        create_error_logfile(conf->LogPath);
+        create_error_logfile(conf->LogDir);
         num_logerr_records = 0;
     }
 mtxLog.unlock();
@@ -281,7 +281,7 @@ mtxLog.lock();
     if (num_log_records > 500000)
     {
         close(flog);
-        create_logfile(conf->LogPath);
+        create_logfile(conf->LogDir);
         num_log_records = 0;
     }
 mtxLog.unlock();
@@ -343,7 +343,7 @@ mtxLog.lock();
     if (num_log_records > 500000)
     {
         close(flog);
-        create_logfile(conf->LogPath);
+        create_logfile(conf->LogDir);
         num_log_records = 0;
     }
 mtxLog.unlock();

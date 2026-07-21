@@ -71,8 +71,9 @@ public:
     std::string ServerSoftware;
 
     std::string DocumentRoot;
-    std::string ScriptPath;
-    std::string LogPath;
+    std::string ScriptDir;
+    std::string LogDir;
+    std::string PidFileDir;
 
     std::string UsePHP;
     std::string PathPHP;

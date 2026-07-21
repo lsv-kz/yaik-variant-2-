@@ -8,7 +8,7 @@ int EventHandlerClass::cgi_fork(Connect *c, Stream *resp, int* serv_cgi, int* cg
 
     if (resp->cgi_type == CGI)
     {
-        resp->cgi.path = conf->ScriptPath;
+        resp->cgi.path = conf->ScriptDir;
         resp->cgi.path += get_script_name(resp->clean_decode_path);
     }
     else if (resp->cgi_type == PHPCGI)
@@ -107,9 +107,9 @@ int EventHandlerClass::cgi_fork(Connect *c, Stream *resp, int* serv_cgi, int* cg
 
         if (resp->cgi_type == CGI)
         {
-            if (chdir(conf->ScriptPath.c_str()))
+            if (chdir(conf->ScriptDir.c_str()))
             {
-                fprintf(stderr, "<%s:%d> Error chdir(%s): %s\n", __func__, __LINE__, conf->ScriptPath.c_str(), strerror(errno));
+                fprintf(stderr, "<%s:%d> Error chdir(%s): %s\n", __func__, __LINE__, conf->ScriptDir.c_str(), strerror(errno));
                 goto to_pipe;
             }
 

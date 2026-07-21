@@ -1,8 +1,7 @@
-CFLAGS = -Wall -O2  -std=c++11
+CFLAGS = -Wall -g -O2  -std=c++11
 
 CC = c++
 #CC = clang++ 
-# -g
 
 DEPS = globals.h  main.h classes.h bytes_array.h
 

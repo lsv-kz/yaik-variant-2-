@@ -84,6 +84,8 @@ int scgi_create_connect(Connect *c, Stream *r);
 //-------------------------- config.cpp --------------------------------
 int read_conf_file(const char *path_conf);
 void free_fcgi_list();
+int create_servers();
+void free_servers();
 //------------------------- index_dir.cpp ------------------------------
 int index_dir(Connect *c, const char *path, const char *uri, BytesArray *b);
 //----------------------- percent_coding.cpp----------------------------

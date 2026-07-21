@@ -19,6 +19,8 @@ int create_nonsecure_connect(const Server *serv,
                     unsigned long *allConn);
 static void close_connect(SecureAccept *c);
 static const int limit_number_sock_struct = 100;
+
+bool wait_close_conn = false;
 //======================================================================
 static void push_list(SecureAccept *s)
 {
@@ -169,6 +171,15 @@ unique_lock<mutex> lk(mtx_num_conn);
         return true;
 }
 //======================================================================
+static void wait_close_connections()
+{
+unique_lock<mutex> lk(mtx_num_conn);
+    while (num_conn > 0)
+    {
+        cond_num_conn.wait(lk);
+    }
+}
+//======================================================================
 void accept_connect()
 {
     unsigned long allConn = 0;
@@ -242,7 +253,7 @@ void accept_connect()
             }
         }
 
-        if (is_maxconn())
+        if (is_maxconn() || wait_close_conn)
         {
             poll_fd_index = conf->num_servers;
             num_poll -= poll_fd_index;
@@ -253,7 +264,14 @@ void accept_connect()
         if (sockets_start)
             timeout = conf->TimeoutPoll;
         else
+        {
+            if (wait_close_conn)
+            {
+                wait_close_connections();
+                break;
+            }
             timeout = -1;
+        }
 
         int ret_poll = poll(poll_fd + poll_fd_index, num_poll, timeout);
         if (ret_poll < 0)

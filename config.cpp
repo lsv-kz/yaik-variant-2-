@@ -226,9 +226,11 @@ static void create_conf_file(const char *path)
     }
 
     const char *conf_file =
-    "PrintDebugMsg        off       # on, off\n\n"
-    "ServerSoftware       ?\n\n"
-    "LogPath              ?\n"
+    "PrintDebugMsg       off       # on, off\n\n"
+    "ServerSoftware      ?\n\n"
+    "ScriptDir           ?\n"
+    "LogDir              ?\n"
+    "PidFileDir          ?\n\n"
     "server {\n"
     "    ip             0.0.0.0\n"
     "    ServerPort     80\n"
@@ -511,10 +513,12 @@ static int read_conf_file(FILE *fconf)
                 c.MaxRequestsPerClient = atoi(s2);
             else if ((!strcmp(s1, "TimeoutPoll")) && is_number(s2))
                 c.TimeoutPoll = atoi(s2);
-            else if (!strcmp(s1, "ScriptPath"))
-                c.ScriptPath = s2;
-            else if (!strcmp(s1, "LogPath"))
-                c.LogPath = s2;
+            else if (!strcmp(s1, "ScriptDir"))
+                c.ScriptDir = s2;
+            else if (!strcmp(s1, "LogDir"))
+                c.LogDir = s2;
+            else if (!strcmp(s1, "PidFileDir"))
+                c.PidFileDir = s2;
             else if ((!strcmp(s1, "MaxCgiProc")) && is_number(s2))
                 c.MaxCgiProc = atoi(s2);
             else if ((!strcmp(s1, "Timeout")) && is_number(s2))
@@ -798,16 +802,22 @@ static int read_conf_file(FILE *fconf)
 
     fclose(fconf);
     //------------------------------------------------------------------
-    if (absolute_path(c.LogPath) == -1)
+    if (absolute_path(c.LogDir) == -1)
     {
-        fprintf(stderr, "<%s:%d> !!! Error LogPath [%s]\n", __func__, __LINE__, conf->LogPath.c_str());
+        fprintf(stderr, "<%s:%d> !!! Error LogDir [%s]\n", __func__, __LINE__, conf->LogDir.c_str());
         return -1;
     }
     //------------------------------------------------------------------
-    if (absolute_path(c.ScriptPath) == -1)
+    if (absolute_path(c.ScriptDir) == -1)
     {
-        c.ScriptPath = "";
-        fprintf(stderr, "<%s:%d> !!! Error ScriptPath [%s]\n", __func__, __LINE__, conf->ScriptPath.c_str());
+        c.ScriptDir = "";
+        fprintf(stderr, "<%s:%d> !!! Error ScriptDir [%s]\n", __func__, __LINE__, conf->ScriptDir.c_str());
+    }
+    //------------------------------------------------------------------
+    if (absolute_path(c.PidFileDir) == -1)
+    {
+        fprintf(stderr, "!!! Error PidFileDir [%s]\n", conf->PidFileDir.c_str());
+        return -1;
     }
     //------------------------------------------------------------------
     if (conf->MaxCgiProc <= 0)
@@ -852,6 +862,11 @@ static int read_conf_file(FILE *fconf)
         return -1;
     }
 
+    return 0;
+}
+//======================================================================
+int create_servers()
+{
     if (conf->servers_list)
     {
         Server *serv = conf->servers_list;
@@ -934,6 +949,36 @@ static int read_conf_file(FILE *fconf)
     }
 
     return 0;
+}
+//======================================================================
+void free_servers()
+{
+    if (conf->servers_list)
+    {
+        Server *serv = conf->servers_list;
+        for ( ; serv; serv = serv->next)
+        {
+            if (serv->sock > 0)
+            {
+                shutdown(serv->sock, SHUT_RDWR);
+                close(serv->sock);
+                serv->sock = -1;
+            }
+
+            if (serv->SecureConnect)
+            {
+                VHost *h = serv->vhosts;
+                for ( ; h; h = h->next)
+                {
+                    if (h->ctx)
+                    {
+                        SSL_CTX_free(h->ctx);
+                        h->ctx = NULL;
+                    }
+                }
+            }
+        }
+    }
 }
 //======================================================================
 int read_conf_file(const char *path_conf)
