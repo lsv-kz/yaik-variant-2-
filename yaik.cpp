@@ -10,28 +10,30 @@ static string pidFile;
 
 void print_config();
 int set_uid();
+void close_waiting_connections();
 
 static bool restartServer = false;
 extern bool wait_close_conn;
 //======================================================================
 void print_help(const char *name)
 {
-    fprintf(stderr, "Usage: %s [-h] [-p] [-s signal]\n"
+    fprintf(stderr, "Usage: %s [-h] [-p] [-c configfile] [-s signal]\n"
                     "Options:\n"
                     "   -h                           : help\n"
                     "   -p                           : print parameters\n"
+                    "   -c [directory of configfile] : default: \".\"\n"
                     "   -s signal                    : restart, close, abort\n", name);
 }
 //======================================================================
 int send_signal(const char *opt)
 {
-    int sig_send;
+    int sig;
     if (!strcmp(opt, "restart"))
-        sig_send = SIGUSR1;
+        sig = SIGUSR1;
     else if (!strcmp(opt, "close"))
-        sig_send = SIGUSR2;
+        sig = SIGUSR2;
     else if (!strcmp(opt, "abort"))
-        sig_send = SIGABRT;
+        sig = SIGABRT;
     else
     {
         fprintf(stderr, "<%s:%d> Error option: %s\n", __func__, __LINE__, opt);
@@ -50,9 +52,9 @@ int send_signal(const char *opt)
     fscanf(fpid, "%u", &pid);
     fclose(fpid);
 
-    if (kill(pid, sig_send))
+    if (kill(pid, sig))
     {
-        fprintf(stderr, "<%s:%d> Error kill(pid=%u, %s): %s\n", __func__, __LINE__, pid, strsignal(sig_send), strerror(errno));
+        fprintf(stderr, "<%s:%d> Error kill(pid=%u, %s): %s\n", __func__, __LINE__, pid, strsignal(sig), strerror(errno));
         return 1;
     }
 
@@ -85,11 +87,13 @@ static void signal_handler(int signo)
         fprintf(stderr, "[%s] - <%s> ####### SIGUSR1 #######\n", log_time().c_str(), __func__);
         restartServer = true;
         wait_close_conn = true;
+        close_waiting_connections();
     }
     else if (signo == SIGUSR2)
     {
         fprintf(stderr, "[%s] - <%s> ####### SIGUSR2 #######\n", log_time().c_str(), __func__);
         wait_close_conn = true;
+        close_waiting_connections();
     }
     else
         fprintf(stderr, "[%s] - <%s> ? signo=%d (%s)\n", log_time().c_str(), __func__, signo, strsignal(signo));
@@ -127,47 +131,59 @@ int main(int argc, char *argv[])
         return 1;
     }
     //------------------------------------------------------------------
-    confPath = nameConfifFile;
-    if (read_conf_file(confPath.c_str()))
-        return 1;
-    if (set_uid())
-    {
-        return 1;
-    }
-
-    cout << "   ===============================\n";
-    cout << "   DocumentRoot : " << conf->DocumentRoot.c_str() << "\n";
-    //------------------------------------------------------------------
     if (argc > 1)
     {
-        int c;
-        while ((c = getopt(argc, argv, "hps:")) != -1)
+        int opt;
+        confPath = nameConfifFile;
+
+        while ((opt = getopt(argc, argv, "hps:c:")) != -1)
         {
-            switch (c)
+            switch (opt)
             {
                 case 's':
+                    if (read_conf_file(confPath.c_str()))
+                        return 1;
                     if (send_signal(optarg))
                     {
                         print_help(argv[0]);
                         return 1;
                     }
+                    return 0;
+                case 'c':
+                    confPath = optarg;
+                    confPath += '/';
+                    confPath += nameConfifFile;
+                    if (read_conf_file(confPath.c_str()))
+                        return 1;
                     break;
                 case 'h':
                     print_help(argv[0]);
-                    break;
+                    return 0;
                 case 'p':
+                    if (read_conf_file(confPath.c_str()))
+                        return 1;
                     print_config();
-                    break;
+                    return 0;
                 default:
                     print_help(argv[0]);
                     return 0;
             }
-        }
 
-        return 0;
+            if (opt == 'c')
+                break;
+        }
+    }
+    else
+    {
+        confPath = nameConfifFile;
+        if (read_conf_file(confPath.c_str()))
+            return 1;
     }
     //------------------------------------------------------------------
-    create_logfiles(conf->LogDir);
+    if (set_uid())
+    {
+        return 1;
+    }
     //------------------------------------------------------------------
     if (create_servers())
     {
@@ -186,6 +202,10 @@ int main(int argc, char *argv[])
     fprintf(fpid, "%u\n", getpid());
     fclose(fpid);
     //------------------------------------------------------------------
+    create_logfiles(conf->LogDir);
+    //------------------------------------------------------------------
+    cout << "   ===============================\n";
+    cout << "   DocumentRoot : " << conf->DocumentRoot.c_str() << "\n";
     if (conf->servers_list)
     {
         Server *serv = conf->servers_list;

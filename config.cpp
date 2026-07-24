@@ -581,6 +581,11 @@ static int read_conf_file(FILE *fconf)
                     c.servers_list = prev_server = serv;
                 else
                 {
+                    if (prev_server == NULL)
+                    {
+                        fprintf(stderr, "<%s:%d> prev_server == NULL\n", __func__, __LINE__);
+                        return -1;
+                    }
                     prev_server->next = serv;
                     prev_server = serv;
                 }
@@ -843,11 +848,16 @@ static int read_conf_file(FILE *fconf)
         fprintf(stderr, "<%s:%d> Error: MaxCgiProc[%d] > MaxAcceptConnections[%d]\n", __func__, __LINE__, conf->MaxCgiProc, conf->MaxAcceptConnections);
         return -1;
     }
-    //------------------------------------------------------------------
+
+    return 0;
+}
+//======================================================================
+int create_servers()
+{
     const int fd_std = 3, fd_logs = 2, fd_sock = 1;
     long min_open_fd = fd_std + fd_logs + fd_sock;
     int max_fd = min_open_fd + conf->MaxAcceptConnections + conf->MaxAcceptConnections * conf->MaxConcurrentStreams + conf->MaxCgiProc * 2;
-    n = set_max_fd(max_fd);
+    int n = set_max_fd(max_fd);
     if (n == -1)
         return -1;
     else if (n < max_fd)
@@ -862,11 +872,6 @@ static int read_conf_file(FILE *fconf)
         return -1;
     }
 
-    return 0;
-}
-//======================================================================
-int create_servers()
-{
     if (conf->servers_list)
     {
         Server *serv = conf->servers_list;
@@ -946,6 +951,11 @@ int create_servers()
                 }
             }
         }
+    }
+    else
+    {
+        fprintf(stderr, "<%s:%d> !!! Error servers list is empty\n", __func__, __LINE__);
+        return -1;
     }
 
     return 0;

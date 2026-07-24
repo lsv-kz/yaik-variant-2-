@@ -5,6 +5,8 @@ using namespace std;
 void cgi_worker(Connect *con, Stream *resp, struct pollfd*);
 
 static EventHandlerClass event_handler_cl;
+
+static bool close_waiting_conn;
 //======================================================================
 EventHandlerClass::~EventHandlerClass()
 {
@@ -531,6 +533,12 @@ void EventHandlerClass::http1_set_poll(Connect *c)
     if (c->client_timer == 0)
         c->client_timer = t;
 
+    if (close_waiting_conn && (c->h1->resp.buf.size() == 0))
+    {
+        close_connect(c);
+        return;
+    }
+
     if ((c->h1->con_status == READ_REQUEST) && (c->numReq > 1))
         Timeout = conf->TimeoutKeepAlive;
 
@@ -657,6 +665,12 @@ void EventHandlerClass::http2_set_poll(Connect *c)
     time_t t = time(NULL);
     if (c->client_timer == 0)
         c->client_timer = t;
+
+    if (close_waiting_conn && (c->h2->start_stream == NULL))
+    {
+        close_connect(c);
+        return;
+    }
 
     if ((t - c->client_timer) >= conf->Timeout)
     {
@@ -1115,4 +1129,9 @@ void push_wait_list(Connect *c)
 void close_event_handler()
 {
     event_handler_cl.close_event_handler();
+}
+//======================================================================
+void close_waiting_connections()
+{
+    close_waiting_conn = true;
 }
