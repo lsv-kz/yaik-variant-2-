@@ -33,7 +33,7 @@ static void push_list(SecureAccept *s)
         sockets_start = s;
 }
 //======================================================================
-static void delete_from_list(SecureAccept *s)
+static void move_to_storage(SecureAccept *s)
 {
     if (s->prev)
         s->prev->next = s->next;
@@ -234,7 +234,6 @@ void accept_connect()
 
     while (run)
     {
-
         time_t timer = time(NULL);
         SecureAccept *s = sockets_start, *next = NULL;
         for ( num_poll = conf->num_servers; s; s = next )
@@ -346,13 +345,24 @@ void accept_connect()
 
         if (ret_poll <= 0)
             continue;
+
         s = sockets_start;
         next = NULL;
         for ( int i = conf->num_servers; s && (i < num_poll) && (ret_poll > 0); ++i, s = next )
         {
             next = s->next;
             int revents = poll_fd[i].revents;
-            if ((s->SecureConnect == false) && (revents | POLLIN))
+            if (revents == 0)
+                continue;
+
+            if (revents & (POLLERR | POLLHUP | POLLNVAL))
+            {
+                print_err("<%s:%d>  Error revents=0x%02X\n", __func__, __LINE__, revents);
+                close_connect(s);
+                continue;
+            }
+
+            if ((s->SecureConnect == false) && (revents & POLLIN))
             {
                 --ret_poll;
                 char buf[16];
@@ -392,7 +402,7 @@ void accept_connect()
                             print_err("<%s:%d> Error new(): %s\n", __func__, __LINE__, strerror(errno));
                         }
 
-                        delete_from_list(s);
+                        move_to_storage(s);
                         continue;
                     }
                     else
@@ -402,8 +412,12 @@ void accept_connect()
                 }
                 else if (ret < 0)
                 {
-                    //print_err("<%s:%d> 0x%02X read_from_client=%d, %s\n", __func__, __LINE__, poll_fd[i].revents, ret, strerror(errno));
-                    continue;
+                    print_err("<%s:%d> 0x%02X read_from_client=%d, %s(%d)\n", __func__, __LINE__, revents, ret, strerror(errno), errno);
+                    if (errno != EAGAIN)
+                    {
+                        close_connect(s);
+                        continue;
+                    }
                 }
                 else
                 {
@@ -413,28 +427,20 @@ void accept_connect()
                 }
             }
 
-            if (revents & (POLLIN | POLLOUT))
+            --ret_poll;
+            int ret = ssl_accept(s);
+            if (ret == 1)
             {
-                --ret_poll;
-                int ret = ssl_accept(s);
-                if (ret == 1)
+                int ret = create_secure_connect(s, &allConn);
+                move_to_storage(s);
+                if (ret < 0)
                 {
-                    int ret = create_secure_connect(s, &allConn);
-                    delete_from_list(s);
-                    if (ret < 0)
-                    {
-                        close_connect(s);
-                    }
-                }
-                else if (ret < 0)
-                {
-                    print_err("<%s:%d> Error ssl_accept()\n", __func__, __LINE__);
                     close_connect(s);
                 }
             }
-            else if (revents)
+            else if (ret < 0)
             {
-                print_err("<%s:%d>  Error revents=0x%02X\n", __func__, __LINE__, revents);
+                print_err("<%s:%d> Error ssl_accept()\n", __func__, __LINE__);
                 close_connect(s);
             }
         }
@@ -564,7 +570,7 @@ int create_nonsecure_connect(const Server *serv,
 //======================================================================
 void close_connect(SecureAccept *s)
 {
-    delete_from_list(s);
+    move_to_storage(s);
     if (s->ssl)
     {
         SSL_clear(s->ssl);
