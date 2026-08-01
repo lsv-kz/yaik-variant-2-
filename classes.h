@@ -51,13 +51,13 @@ extern const char *static_tab[][2];
 
 void print_err(const char *format, ...);
 //======================================================================
-typedef struct fcgi_list_addr
+struct fcgi_list_addr
 {
     std::string script_name;
     std::string addr;
     CGI_TYPE type;
-    struct fcgi_list_addr *next;
-} fcgi_list_addr;
+    fcgi_list_addr *next;
+};
 //----------------------------------------------------------------------
 class Config
 {

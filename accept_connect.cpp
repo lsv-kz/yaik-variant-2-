@@ -185,8 +185,9 @@ void accept_connect()
     unsigned long allConn = 0;
     num_conn = 0;
     struct pollfd *poll_fd;
+    int size_pollfd = conf->num_servers + limit_number_sock_struct;
 
-    poll_fd = new(nothrow) struct pollfd [conf->num_servers + conf->MaxAcceptConnections];
+    poll_fd = new(nothrow) struct pollfd [size_pollfd];
     if (!poll_fd)
     {
         print_err("<%s:%d> Error new(): %s\n", __func__, __LINE__, strerror(errno));
@@ -235,8 +236,9 @@ void accept_connect()
     while (run)
     {
         time_t timer = time(NULL);
+        num_poll = conf->num_servers;
         SecureAccept *s = sockets_start, *next = NULL;
-        for ( num_poll = conf->num_servers; s; s = next )
+        for ( ; s && (num_poll < size_pollfd); s = next )
         {
             next = s->next;
             if ((timer - s->timer) >= 10)
@@ -296,9 +298,12 @@ void accept_connect()
                     break;
                 }
 
+                if (poll_fd[num_].revents == 0)
+                    continue;
+
+                --ret_poll;
                 if (poll_fd[num_].revents == POLLIN)
                 {
-                    --ret_poll;
                     int clientSocket = accept(serv->sock, NULL, NULL);
                     if (clientSocket == -1)
                     {
@@ -343,18 +348,21 @@ void accept_connect()
             }
         }
 
+        if (run == false)
+            break;
         if (ret_poll <= 0)
             continue;
 
         s = sockets_start;
         next = NULL;
-        for ( int i = conf->num_servers; s && (i < num_poll) && (ret_poll > 0); ++i, s = next )
+        for ( int i = conf->num_servers; s && (ret_poll > 0); ++i, s = next )
         {
             next = s->next;
             int revents = poll_fd[i].revents;
             if (revents == 0)
                 continue;
 
+            --ret_poll;
             if (revents & (POLLERR | POLLHUP | POLLNVAL))
             {
                 print_err("<%s:%d>  Error revents=0x%02X\n", __func__, __LINE__, revents);
@@ -364,7 +372,6 @@ void accept_connect()
 
             if ((s->SecureConnect == false) && (revents & POLLIN))
             {
-                --ret_poll;
                 char buf[16];
                 int ret = recv(s->sock, buf, sizeof(buf) - 1, MSG_PEEK);
                 if (ret > 0)
@@ -421,13 +428,12 @@ void accept_connect()
                 }
                 else
                 {
-                    print_err("[%lu]<%s:%d> 0x%02X read_from_client=%d\n", allConn, __func__, __LINE__, revents, ret);
+                    print_err("<%s:%d> 0x%02X read_from_client=%d\n", __func__, __LINE__, revents, ret);
                     close_connect(s);
                     continue;
                 }
             }
 
-            --ret_poll;
             int ret = ssl_accept(s);
             if (ret == 1)
             {
