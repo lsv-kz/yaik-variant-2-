@@ -170,7 +170,7 @@ void set_rst_stream(Connect *c, Stream *resp, HTTP2_ERRORS error)
     resp->rst_stream.ncpy(s, 13);
 }
 //======================================================================
-void set_frame_data(Stream *resp, int len, int flag)
+void set_header_frame_data(Stream *resp, int len, int flag)
 {
     int id = resp->id;
     char s[] = "\0\0\0\0\0\0\0\0\0";
@@ -205,7 +205,7 @@ static int set_frame_data(Connect *c, Stream *resp)
         {
             resp->buf.init();
             resp->cgi.end = true;
-            set_frame_data(resp, 0, FLAG_END_STREAM);
+            set_header_frame_data(resp, 0, FLAG_END_STREAM);
             return 0;
         }
 
@@ -217,7 +217,7 @@ static int set_frame_data(Connect *c, Stream *resp)
             if (len > min_window_size)
                 len = min_window_size;
 
-            set_frame_data(resp, len, 0);
+            set_header_frame_data(resp, len, 0);
             resp->send_data.ncat(resp->buf.ptr_remain(), len);
             resp->buf.inc_offset(len);
             if (resp->buf.size_remain() == 0)
@@ -226,7 +226,7 @@ static int set_frame_data(Connect *c, Stream *resp)
         else
         {
             if (resp->cgi.end)
-                set_frame_data(resp, 0, FLAG_END_STREAM);
+                set_header_frame_data(resp, 0, FLAG_END_STREAM);
             else
                 return 0;
         }
@@ -261,18 +261,18 @@ static int set_frame_data(Connect *c, Stream *resp)
                 }
 
                 data_len = ret;
+                resp->resp_content_len -= data_len;
+                if (resp->resp_content_len == 0)
+                {
+                    close(resp->fd);
+                    resp->fd = -1;
+                }
             }
 
-            resp->resp_content_len -= data_len;
             int flag = (resp->resp_content_len > 0) ? 0 : FLAG_END_STREAM;
-            set_frame_data(resp, data_len, flag);
+            set_header_frame_data(resp, data_len, flag);
             if (data_len > 0)
                 resp->send_data.ncat(buf, data_len);
-            if (resp->resp_content_len == 0)
-            {
-                close(resp->fd);
-                resp->fd = -1;
-            }
         }
         else if (resp->source_data == DIRECTORY)
         {
@@ -292,7 +292,7 @@ static int set_frame_data(Connect *c, Stream *resp)
 
             resp->resp_content_len -= data_len;
             int flag = (resp->resp_content_len > 0) ? 0 : FLAG_END_STREAM;
-            set_frame_data(resp, data_len, flag);
+            set_header_frame_data(resp, data_len, flag);
             resp->send_data.ncat(resp->buf.ptr_remain(), data_len);
             resp->buf.inc_offset(data_len);
         }
@@ -376,7 +376,7 @@ static int set_response(Connect *c, Stream *resp)
         set_error_message(c, resp, RS400);
         return 0;
     }
-
+    //------------------------------------------------------------------
     if (resp->httpMethod == M_POST)
     {
         if (resp->sReqContentType.size() == 0)
@@ -532,7 +532,7 @@ static int set_response(Connect *c, Stream *resp)
             snprintf(s, sizeof(s), "%d", (int)(len + resp->path.size()));
             add_header(resp->headers, 28, s);                           // "content-length"
             resp->send_data.reserve(9 + len + resp->path.size());
-            set_frame_data(resp, len + resp->path.size(), FLAG_END_STREAM);
+            set_header_frame_data(resp, len + resp->path.size(), FLAG_END_STREAM);
             resp->send_data.ncat(msg, len);
             resp->send_data.ncat(resp->path.c_str(), resp->path.size());
             return 0;
@@ -682,8 +682,9 @@ int EventHandlerClass::http2_connection(Connect *c)
             print_err(c, "<%s:%d> SSL_SHUTDOWN: SSL_read()=%d\n", __func__, __LINE__, err);
             c->client_timer = 0;
             c->tls.shutdown_timer = 0;
-            if (conf->PrintDebugMsg)
-                hex_print_stderr("recv SSL_SHUTDOWN", __LINE__, buf, err);
+            //if (conf->PrintDebugMsg)
+            //    hex_print_stderr("recv SSL_SHUTDOWN", __LINE__, buf, err);
+            hex_print_stderr("recv SSL_SHUTDOWN", __LINE__, buf, 16);
         }
         return 0;
     }
@@ -751,6 +752,9 @@ int EventHandlerClass::recv_frame_(Connect *c)
                 print_err(c, "<%s:%d> Error frame size: %d\n", __func__, __LINE__, c->h2->body_len + 9);
                 return -1;
             }
+
+            if (c->h2->type == HEADERS)
+                c->h2->body.ncat(c->h2->header, c->h2->header_len);
         }
         else
         {
@@ -869,6 +873,7 @@ int EventHandlerClass::parse_frame(Connect *c)
         {
             print_err(c, "<%s:%d> recv DATA: Error list.get(id=%d), h2.body.size()=%d, flag=%d \n", __func__, __LINE__,
                             c->h2->id, c->h2->body.size(), (int)c->h2->header[4]);
+            set_frame_goaway(c, INTERNAL_ERROR);
             return 0;
         }
 
@@ -1248,6 +1253,10 @@ int EventHandlerClass::send_frame_headers(Connect *c, Stream *resp)
         resp->headers.inc_offset(ret);
         if (resp->headers.size_remain())
             return ERR_TRY_AGAIN;
+
+        if (conf->PrintDebugMsg)
+            c->h2->parse(resp, &resp->headers, false);
+
         resp->send_headers = true;
         if ((resp->headers.get_byte(4) & FLAG_END_STREAM) || resp->recv_rst_stream)
         {
@@ -1312,6 +1321,8 @@ int EventHandlerClass::send_frame_data(Connect *c, Stream *resp)
         }
     }
 
+    if (conf->PrintDebugMsg)
+        hex_print_stderr(__func__, __LINE__, resp->send_data.ptr_remain(), resp->send_data.size_remain());
     c->client_timer = 0;
     resp->send_data.inc_offset(ret);
     if (resp->send_data.size_remain())
@@ -1321,6 +1332,11 @@ int EventHandlerClass::send_frame_data(Connect *c, Stream *resp)
         resp->send_bytes += (resp->send_data.size() - 9);
         resp->stream_window_size -= (resp->send_data.size() - 9);
         c->h2->connect_window_size -= (resp->send_data.size() - 9);
+    }
+
+    if ((resp->httpMethod == M_POST) &&(resp->resp_status >= RS400))
+    {
+        set_frame_goaway(c, CANCEL);
     }
 
     if ((resp->send_data.get_byte(4) & FLAG_END_STREAM) || resp->recv_rst_stream)

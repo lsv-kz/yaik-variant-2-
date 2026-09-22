@@ -87,6 +87,27 @@ static int set_response(Connect *c)
         return -RS400;
     }
     //------------------------------------------------------------------
+    if (c->h1->resp.httpMethod == M_POST)
+    {
+        if (c->h1->resp.sReqContentType.size() == 0)
+        {
+            print_err(&c->h1->resp, "<%s:%d> Content-Type \?\n", __func__, __LINE__);
+            return -RS400;
+        }
+
+        if (c->h1->resp.sReqContentLen.size() == 0)
+        {
+            print_err(&c->h1->resp, "<%s:%d> 411 Length Required\n", __func__, __LINE__);
+            return -RS411;
+        }
+
+        if (c->h1->resp.post_content_len >= conf->ClientMaxBodySize)
+        {
+            print_err(&c->h1->resp, "<%s:%d> 413 Request entity too large: %lld\n", __func__, __LINE__, c->h1->resp.post_content_len);
+            return -RS413;
+        }
+    }
+    //------------------------------------------------------------------
     if (!strncmp(c->h1->resp.clean_decode_path, "/cgi-bin/", 9) || !strncmp(c->h1->resp.clean_decode_path, "/cgi/", 5))
     {
         c->h1->resp.cgi_type = CGI;
@@ -380,6 +401,8 @@ int EventHandlerClass::http1_worker(Connect *c, int revents)
         }
         else
         {
+            if (conf->PrintDebugMsg)
+                hex_print_stderr(__func__, __LINE__, snd_buf, ret);
             c->client_timer = 0;
             c->h1->resp.send_bytes += ret;
             if (c->h1->resp.source_data == FROM_FILE)

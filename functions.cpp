@@ -259,8 +259,6 @@ const char *get_cgi_status(CGI_STATUS s)
             return "NO_CGI";
         case CGI_CREATE:
             return "CGI_CREATE";
-        case FASTCGI_BEGIN:
-            return "FASTCGI_BEGIN";
         case FASTCGI_PARAMS:
             return "FASTCGI_PARAMS";
         case SCGI_PARAMS:
@@ -746,7 +744,7 @@ static void set_error(Stream *resp, int err)
 
     const char *err_msg = http1_status_response(err);
     int len = strlen(err_msg);
-    set_frame_data(resp, len, FLAG_END_STREAM);
+    set_header_frame_data(resp, len, FLAG_END_STREAM);
     resp->send_data.ncat(err_msg, len);
 }
 //======================================================================

@@ -108,7 +108,7 @@ Stream *http2::new_stream(unsigned long numConn, unsigned long numReq)
 
     resp->stream_window_size = init_window_size;
 
-    int ret = parse(resp);
+    int ret = parse(resp, &body, true);
     if (ret)
     {
         set_rst_stream(&c, resp, CANCEL);
@@ -181,7 +181,7 @@ int http2::size()
     return num_streams;
 }
 //----------------------------------------------------------------------
-int http2::get_str(std::string& str, int *offset)
+int http2::get_str(BytesArray *ba, std::string& str, int *offset)
 {
     int ch;
     if (offset == NULL)
@@ -190,7 +190,7 @@ int http2::get_str(std::string& str, int *offset)
         return -1;
     }
 
-    if ((ch = body.get_byte((*offset)++)) < 0)
+    if ((ch = ba->get_byte((*offset)++)) < 0)
     {
         print_err("<%s:%d> Error get_byte()=%d\n", __func__, __LINE__, ch);
         return -1;
@@ -200,7 +200,7 @@ int http2::get_str(std::string& str, int *offset)
     int val_len = ch & 0x7f;
     if (val_len == 0x7f)
     {
-        val_len = bytes_to_int(val_len, 7, body.ptr(), body.size(), offset);
+        val_len = bytes_to_int(val_len, 7, ba->ptr(), ba->size(), offset);
         if (val_len <= 0)
         {
             print_err("<%s:%d> Error bytes_to_int()=%d\n", __func__, __LINE__, val_len);
@@ -208,25 +208,25 @@ int http2::get_str(std::string& str, int *offset)
         }
     }
 
-    if ((val_len + *offset) > (int)body.size())
+    if ((val_len + *offset) > (int)ba->size())
     {
-        print_err("<%s:%d> Error out of range [%d > %d]\n", __func__, __LINE__, val_len + *offset, body.size());
+        print_err("<%s:%d> Error out of range [%d > %d]\n", __func__, __LINE__, val_len + *offset, ba->size());
         return -1;
     }
 
     if (huffman)
-        huffman_decode(body.ptr() + *offset, val_len, str);
+        huffman_decode(ba->ptr() + *offset, val_len, str);
     else
-        str.assign(body.ptr() + *offset, val_len);
+        str.assign(ba->ptr() + *offset, val_len);
     (*offset) += val_len;
     return 0;
 }
 //----------------------------------------------------------------------
-int http2::get_header(int ind, std::string& name, std::string& val, int *offset)
+int http2::get_header(BytesArray *ba, int ind, std::string& name, std::string& val, int *offset)
 {
     if (ind == 0x00)
     {
-        if (get_str(name, offset) < 0)
+        if (get_str(ba, name, offset) < 0)
             return -1;
     }
     else
@@ -263,16 +263,16 @@ int http2::get_header(int ind, std::string& name, std::string& val, int *offset)
 
     if (offset)
     {
-        if (get_str(val, offset) < 0)
+        if (get_str(ba, val, offset) < 0)
             return -1;
     }
 
     return 0;
 }
 //----------------------------------------------------------------------
-int http2::parse(Stream *r)
+int http2::parse(Stream *r, BytesArray *ba, bool get_headers)
 {
-    int offset = 0;
+    int offset = 9;
     int ch;
     if (flags & 0x08) // PADDED (0x8)
         ++offset;
@@ -283,12 +283,12 @@ int http2::parse(Stream *r)
     std::string val;
     val.reserve(128);
 
-    for ( ; offset < (int)body.size(); )
+    for ( ; offset < (int)ba->size(); )
     {
         name = "?";
         val = "?";
 
-        if ((ch = body.get_byte(offset++)) < 0)
+        if ((ch = ba->get_byte(offset++)) < 0)
         {
             print_err("<%s:%d> Error ch=%d, 0x%X\n", __func__, __LINE__, ch, ch);
             return -1;
@@ -296,14 +296,14 @@ int http2::parse(Stream *r)
 
         if (ch > 0x80)
         {// <0x81 ... 0xFF> ; static table: [0x81 ... 0xBD], dynamic table: [0xBE ...]
-            int ind = bytes_to_int(ch & 0x7f, 7, body.ptr(), body.size(), &offset);
-            if (get_header(ind, name, val, NULL) < 0)
+            int ind = bytes_to_int(ch & 0x7f, 7, ba->ptr(), ba->size(), &offset);
+            if (get_header(ba, ind, name, val, NULL) < 0)
                 return -1;
         }
         else if ((ch >= 0x40) && (ch <= 0x7f))
         {// <0x40><len><name><len><val>, <0x41 ... 0x7F><index><len><val> ---> dyn_tab
-            int ind = bytes_to_int(ch & 0x3f, 6, body.ptr(), body.size(), &offset);
-            if (get_header(ind, name, val, &offset) < 0)
+            int ind = bytes_to_int(ch & 0x3f, 6, ba->ptr(), ba->size(), &offset);
+            if (get_header(ba, ind, name, val, &offset) < 0)
                 return -1;
             if (conf->PrintDebugMsg)
                 print_err("<%s:%d> [%s: %s]\n", __func__, __LINE__, name.c_str(), val.c_str());
@@ -315,19 +315,19 @@ int http2::parse(Stream *r)
         }
         else if ((ch >= 0x00) && (ch <= 0x0f))
         {// <0x00><len><name><len><val>, <0x01 ... 0x0F><index><len><val>
-            int ind = bytes_to_int(ch, 4, body.ptr(), body.size(), &offset);
-            if (get_header(ind, name, val, &offset) < 0)
+            int ind = bytes_to_int(ch, 4, ba->ptr(), ba->size(), &offset);
+            if (get_header(ba, ind, name, val, &offset) < 0)
                 return -1;
         }
         else if ((ch >= 0x10) && (ch <= 0x1f))
         {// <0x10><len><name><len><val>, <0x11 ... 0x1F><index><len><val>
-            int ind = bytes_to_int(ch & 0x0f, 4, body.ptr(), body.size(), &offset);
-            if (get_header(ind, name, val, &offset) < 0)
+            int ind = bytes_to_int(ch & 0x0f, 4, ba->ptr(), ba->size(), &offset);
+            if (get_header(ba, ind, name, val, &offset) < 0)
                 return -1;
         }
         else if ((ch >= 0x20) && (ch <= 0x3f))
         {// Dynamic Table Size Update
-            int size = bytes_to_int(ch & 0x1f, 5, body.ptr(), body.size(), &offset);
+            int size = bytes_to_int(ch & 0x1f, 5, ba->ptr(), ba->size(), &offset);
             print_err("[%lu/%lu] recv Dynamic Table Size Update: %d\n", r->numConn, r->numReq, size);
             continue;
         }
@@ -339,53 +339,50 @@ int http2::parse(Stream *r)
 
         if (conf->PrintDebugMsg)
             print_err("[%lu/%lu] 0x%02X [%s: %s]\n", r->numConn, r->numReq, ch, name.c_str(), val.c_str());
-
-        if (name == ":method")
+        if (get_headers)
         {
-            r->httpMethod = get_int_method(val.c_str());
-            if (r->httpMethod == 0)
+            if (name == ":method")
             {
-                print_err("<%s:%d> Error http method: %s, id=%d \n", __func__, __LINE__, val.c_str(), r->id);
-                return -1;
+                r->httpMethod = get_int_method(val.c_str());
+                if (r->httpMethod == 0)
+                {
+                    print_err("<%s:%d> Error http method: %s, id=%d \n", __func__, __LINE__, val.c_str(), r->id);
+                    return -1;
+                }
             }
-        }
-        else if (name == ":path")
-            r->path = val;
-        else if (name == "host")
-            r->host = val;
-        else if (name == "user-agent")
-            r->user_agent = val;
-        else if (name == "referer")
-            r->referer = val;
-        else if (name == "range")
-        {
-            if (conf->PrintDebugMsg)
-                print_err("<%s:%d> [%s: %s]\n", __func__, __LINE__, name.c_str(), val.c_str());
-            r->range = val;
-        }
-        else if (name == ":authority")
-            r->host = val;
-        else if (name == "content-length")
-        {
-            r->sReqContentLen = val;
-            try
+            else if (name == ":path")
+                r->path = val;
+            else if (name == "host")
+                r->host = val;
+            else if (name == "user-agent")
+                r->user_agent = val;
+            else if (name == "referer")
+                r->referer = val;
+            else if (name == "range")
             {
-                r->post_content_len = stoll(val, NULL, 10);
+                if (conf->PrintDebugMsg)
+                    print_err("<%s:%d> [%s: %s]\n", __func__, __LINE__, name.c_str(), val.c_str());
+                r->range = val;
             }
-            catch (...)
+            else if (name == ":authority")
+                r->host = val;
+            else if (name == "content-length")
             {
-                print_err("<%s:%d> Error stoll(\"%s\")\n", __func__, __LINE__, val.c_str());
-                return -1;
+                r->sReqContentLen = val;
+                try
+                {
+                    r->post_content_len = stoll(val, NULL, 10);
+                }
+                catch (...)
+                {
+                    print_err("<%s:%d> Error stoll(\"%s\")\n", __func__, __LINE__, val.c_str());
+                    return -1;
+                }
             }
-        }
-        else if (name == "content-type")
-        {
-            r->sReqContentType = val;
-        }
-        else
-        {
-            if (conf->PrintDebugMsg)
-                print_err("<%s:%d> [%s: %s]\n", __func__, __LINE__, name.c_str(), val.c_str());
+            else if (name == "content-type")
+            {
+                r->sReqContentType = val;
+            }
         }
     }
 

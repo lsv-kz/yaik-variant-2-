@@ -73,6 +73,7 @@ int cgi_set_size_chunk(BytesArray *ba);
 int cgi_parse_headers(Connect* c, Stream *resp, bool lower_case);
 //------------------------ http1_fcgi.cpp ------------------------------
 void fcgi_set_header(BytesArray* ba, unsigned char type);
+void fcgi_set_header(BytesArray* ba, int offset, unsigned char type);
 void fcgi_set_header(char *s, unsigned char type, int dataLen);
 int fcgi_create_connect(Connect *c, Stream *r);
 //------------------------ http2_cgi.cpp -------------------------------
@@ -124,7 +125,7 @@ const char *http2_status_resonse(int st);
 //--------------------------- http2.cpp --------------------------------
 void set_frame_headers(Stream *r);
 void set_frame_flags(BytesArray *ba, int flags);
-void set_frame_data(Stream *resp, int len, int flag);
+void set_header_frame_data(Stream *resp, int len, int flag);
 void add_header(Stream *r, int ind);
 void add_header(BytesArray& ba, int ind, const char *val);
 void add_header(BytesArray& ba, const char *name, const char *val);

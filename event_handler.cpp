@@ -241,7 +241,7 @@ int EventHandlerClass::http2_cgi_set(Connect *c)
                 return 0;
             }
 
-            if ((resp->cgi_status == FASTCGI_BEGIN) || (resp->cgi_status == FASTCGI_PARAMS) || (resp->cgi_status == SCGI_PARAMS))
+            if ((resp->cgi_status == FASTCGI_PARAMS) || (resp->cgi_status == SCGI_PARAMS))
             {
                 poll_fd[num_poll].fd = resp->cgi.fd;
                 poll_fd[num_poll].events = POLLOUT;
@@ -418,8 +418,7 @@ int EventHandlerClass::http1_cgi_set(Connect *c)
         return 0;
     }
 
-    if ((c->h1->resp.cgi_status == FASTCGI_BEGIN) ||
-        (c->h1->resp.cgi_status == FASTCGI_PARAMS) ||
+    if ((c->h1->resp.cgi_status == FASTCGI_PARAMS) ||
         (c->h1->resp.cgi_status == SCGI_PARAMS)
     )
     {
@@ -445,9 +444,7 @@ int EventHandlerClass::http1_cgi_set(Connect *c)
         cgi_array[num_poll] = &c->h1->resp;
         ++num_poll;
     }
-    else if ((c->h1->resp.cgi_status == CGI_STDOUT) &&
-             ((c->h1->resp.send_data.size() == 0) || (c->h1->resp.create_headers == false))
-    )
+    else if ((c->h1->resp.cgi_status == CGI_STDOUT) && (c->h1->resp.send_data.size_remain() == 0))
     {
         if ((c->h1->resp.cgi_type == CGI) || (c->h1->resp.cgi_type == PHPCGI))
         {
@@ -473,7 +470,7 @@ void EventHandlerClass::http1_cgi_poll(Connect *c, int poll_ind)
     {
         if ((c->h1->resp.cgi_type == CGI) || (c->h1->resp.cgi_type == PHPCGI))
         {
-            cgi_worker(c, poll_ind);
+            cgi_worker(c, &c->h1->resp, poll_ind);
         }
         else if (c->h1->resp.cgi_type == SCGI)
         {
@@ -486,11 +483,11 @@ void EventHandlerClass::http1_cgi_poll(Connect *c, int poll_ind)
                 }
             }
             else
-                cgi_worker(c, poll_ind);
+                cgi_worker(c, &c->h1->resp, poll_ind);
         }
         else if ((c->h1->resp.cgi_type == PHPFPM) || (c->h1->resp.cgi_type == FASTCGI))
         {
-            fcgi_worker(c, poll_ind);
+            fcgi_worker(c, &c->h1->resp, poll_ind);
         }
         else
         {
@@ -617,7 +614,7 @@ void EventHandlerClass::http1_set_poll(Connect *c)
         }
         else if (c->h1->con_status == SEND_ENTITY)
         {
-            if (((c->h1->resp.source_data == DYN_PAGE) && c->h1->resp.send_data.size_remain()) ||
+            if (((c->h1->resp.source_data == DYN_PAGE) && (c->h1->resp.send_data.size_remain() || c->h1->resp.buf.size_remain())) ||
                  (c->h1->resp.source_data != DYN_PAGE)
             )
             {

@@ -3,53 +3,53 @@
 
 using namespace std;
 //======================================================================
-static int isimage(const char *name)
+static bool isimage(const char *name)
 {
     const char *p;
 
     if (!(p = strrchr(name, '.')))
-        return 0;
+        return false;
 
     if (!strlcmp_case(p, ".gif", 4))
-        return 1;
+        return true;
     else if (!strlcmp_case(p, ".png", 4))
-        return 1;
+        return true;
     else if (!strlcmp_case(p, ".svg", 4))
-        return 1;
+        return true;
     else if (!strlcmp_case(p, ".jpeg", 5) || !strlcmp_case(p, ".jpg", 4))
-        return 1;
-    return 0;
+        return true;
+    return false;
 }
 //======================================================================
-static int isaudio(const char *name)
+static bool isaudio(const char *name)
 {
     const char *p;
 
     if (!(p = strrchr(name, '.')))
-        return 0;
+        return false;
 
     if (!strlcmp_case(p, ".wav", 4))
-        return 1;
+        return true;
     else if (!strlcmp_case(p, ".mp3", 4))
-        return 1;
+        return true;
     else if (!strlcmp_case(p, ".ogg", 4))
-        return 1;
-    return 0;
+        return true;
+    return false;
 }
 //======================================================================
-static int isvideo(const char *name)
+static bool isvideo(const char *name)
 {
     const char *p;
 
     if (!(p = strrchr(name, '.')))
-        return 0;
+        return false;
     if (!strlcmp_case(p, ".mp4", 4))
-        return 1;
+        return true;
     else if (!strlcmp_case(p, ".webm", 4))
-        return 1;
+        return true;
     else if (!strlcmp_case(p, ".ogv", 4))
-        return 1;
-    return 0;
+        return true;
+    return false;
 }
 //======================================================================
 static bool cmp(const string &a, const string &b)
@@ -74,8 +74,6 @@ static bool cmp(const string &a, const string &b)
 //======================================================================
 static int create_index_html(Connect *c, vector<string>& list, int num_files, const char *dir_path, const char *uri, BytesArray *html)
 {
-    int n, i;
-    struct stat st;
     int dir_path_len = strlen(dir_path);
     char *file_path = (char*)malloc(dir_path_len + NAME_MAX + 1);
     if (file_path == NULL)
@@ -122,15 +120,16 @@ static int create_index_html(Connect *c, vector<string>& list, int num_files, co
     else
         html->strcat("   <tr><td><a href=\"../\">Parent Directory/</a></td></tr>\r\n");
     //-------------------------- Directories ---------------------------
-    for (i = 0; i < num_files; i++)
+    for (auto it = list.begin(); it != list.end(); ++it)
     {
         char buf[1024];
-        memcpy(file_path + dir_path_len, list[i].c_str(), list[i].size() + 1);
-        n = lstat(file_path, &st);
+        struct stat st;
+        memcpy(file_path + dir_path_len, (*it).c_str(), (*it).size() + 1);
+        int n = lstat(file_path, &st);
         if ((n == -1) || !S_ISDIR (st.st_mode))
             continue;
 
-        if (!encode(list[i].c_str(), buf, sizeof(buf)))
+        if (!encode((*it).c_str(), buf, sizeof(buf)))
         {
             print_err(c, "<%s:%d> Error: encode()\n", __func__, __LINE__);
             continue;
@@ -139,54 +138,55 @@ static int create_index_html(Connect *c, vector<string>& list, int num_files, co
         html->strcat("   <tr><td><a href=\"");
         html->strcat(buf);
         html->strcat("/\">");
-        html->strcat(list[i].c_str());
+        html->strcat((*it).c_str());
         html->strcat("/</a></td></tr>\r\n");
     }
     //------------------------------------------------------------------
     html->strcat("  </table>\r\n   <hr>\r\n  <table border=\"0\" width=\"100\%\">\r\n"
                 "   <tr><td><h3>Files</h3></td><td></td></tr>\r\n");
     //---------------------------- Files -------------------------------
-    for (i = 0; i < num_files; i++)
+    for (auto it = list.begin(); it != list.end(); ++it)
     {
         char buf[1024];
-        memcpy(file_path + dir_path_len, list[i].c_str(), list[i].size() + 1);
-        n = lstat(file_path, &st);
+        struct stat st;
+        memcpy(file_path + dir_path_len, (*it).c_str(), (*it).size() + 1);
+        int n = lstat(file_path, &st);
         if ((n == -1) || !S_ISREG (st.st_mode))
             continue;
-        else if (!strcmp(list[i].c_str(), "favicon.ico"))
+        else if ((*it) == "favicon.ico")
             continue;
 
-        if (!encode(list[i].c_str(), buf, sizeof(buf)))
+        if (!encode((*it).c_str(), buf, sizeof(buf)))
         {
             print_err(c, "<%s:%d> Error: encode()\n", __func__, __LINE__);
             continue;
         }
 
-        if (isimage(list[i].c_str()) && conf->ShowMediaFiles)
+        if (isimage((*it).c_str()) && conf->ShowMediaFiles)
         {
             html->strcat("   <tr><td><a href=\"");
             html->strcat(buf);
             html->strcat("\"><img src=\"");
             html->strcat(buf);
             html->strcat("\" width=\"100\"></a>");
-            html->strcat(list[i].c_str());
+            html->strcat((*it).c_str());
             html->strcat("</td><td align=\"right\">");
             html->cat_int(st.st_size);
             html->strcat(" bytes</td></tr>\r\n");
         }
-        else if (isaudio(list[i].c_str()) && conf->ShowMediaFiles)
+        else if (isaudio((*it).c_str()) && conf->ShowMediaFiles)
         {
             html->strcat("   <tr><td><audio preload=\"none\" controls src=\"");
             html->strcat(buf);
             html->strcat("\"></audio><a href=\"");
             html->strcat(buf);
             html->strcat("\">");
-            html->strcat(list[i].c_str());
+            html->strcat((*it).c_str());
             html->strcat("</a></td><td align=\"right\">");
             html->cat_int(st.st_size);
             html->strcat(" bytes</td></tr>\r\n");
         }
-        else if (isvideo(list[i].c_str()) && conf->ShowMediaFiles)
+        else if (isvideo((*it).c_str()) && conf->ShowMediaFiles)
         {
             html->strcat("   <tr><td><video width=\"320\" preload=\"none\" controls src=\"");
             //html->strcat("   <tr><td><video preload=\"none\" controls src=\"");
@@ -194,7 +194,7 @@ static int create_index_html(Connect *c, vector<string>& list, int num_files, co
             html->strcat("\"></video><a href=\"");
             html->strcat(buf);
             html->strcat("\">");
-            html->strcat(list[i].c_str());
+            html->strcat((*it).c_str());
             html->strcat("</a></td><td align=\"right\">");
             html->cat_int(st.st_size);
             html->strcat(" bytes</td></tr>\r\n");
@@ -204,7 +204,7 @@ static int create_index_html(Connect *c, vector<string>& list, int num_files, co
             html->strcat("   <tr><td><a href=\"");
             html->strcat(buf);
             html->strcat("\">");
-            html->strcat(list[i].c_str());
+            html->strcat((*it).c_str());
             html->strcat("</a></td><td align=\"right\">");
             html->cat_int(st.st_size);
             html->strcat(" bytes</td></tr>\r\n");

@@ -641,9 +641,9 @@ struct http2
     Stream *get(int id);
     Stream *get();
     int size();
-    int get_str(std::string& s, int *len);
-    int get_header(int ind, std::string& name, std::string& val, int *len);
-    int parse(Stream *r);
+    int get_str(BytesArray *ba, std::string& s, int *len);
+    int get_header(BytesArray *ba, int ind, std::string& name, std::string& val, int *len);
+    int parse(Stream *r, BytesArray *ba, bool);
     //------------------------------------------------------------------
     const char *get_str_status()
     {
@@ -720,23 +720,21 @@ class EventHandlerClass
     void http2_set_poll(Connect *c);
     int http2_poll(Connect *c, int);
 
-    void cgi_worker(Connect *c, Stream *r, int i);
-    int cgi_create_proc(Connect *c, Stream *r);
-    int cgi_fork(Connect *c, Stream *r, int* serv_cgi, int* cgi_serv);
-    int cgi_stdin(Stream *r, int fd);
-    int cgi_stdout(Connect *c, Stream *r, int fd);
+    int cgi_worker_(Connect *c, Stream *s, int cgi_ind_poll);
+    void cgi_worker(Connect *c, Stream *s, int cgi_ind_poll);
+    int cgi_create_proc(Connect *c, Stream *s);
+    int cgi_fork(Connect *c, Stream *s, int* serv_cgi, int* cgi_serv);
+    int cgi_stdin(Stream *s, int fd);
+    int cgi_stdout(Connect *c, Stream *s, int fd, int buf_size);
+
+    int scgi_worker(Connect *c, Stream *s, int i);
+
+    int fcgi_worker_(Connect* c, Stream *s, int cgi_ind_poll);
+    void fcgi_worker(Connect *c, Stream *s, int cgi_ind_poll);
+    int fcgi_stdout(Connect *c, Stream *s, int fd);
 
     void http1_get_cgi_headers(Connect *c);
     void http2_get_cgi_headers(Connect *c, Stream *r);
-
-    void cgi_worker(Connect *c, int i);
-    int cgi_stdout(Connect *c, int fd);
-
-    int scgi_worker(Connect *c, Stream *r, int i);
-
-    void fcgi_worker(Connect *c, Stream *r, int i);
-
-    void fcgi_worker(Connect *c, int i);
 
     void http1_end_request(Connect *c);
     void http2_end_request(http2 *h2, int id);
